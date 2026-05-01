@@ -27,12 +27,13 @@
         }))
       },
       {
-        id: "animal-migration",
+        id: "hockey-stick",
         labelKey: "imageClassifierClassAnimalMigration",
-        datasetPath: "./images/full_binary_animal migration.bin",
+        datasetPath: "./images/menu-doodles/hockey_stick.json",
+        datasetType: "json",
         samples: Array.from({ length: 15 }, (_, index) => ({
-          id: `animal-migration-${index + 1}`,
-          preview: `ANIMAL\nMIGRATION ${index + 1}`
+          id: `hockey-stick-${index + 1}`,
+          preview: `HOCKEY\nSTICK ${index + 1}`
         }))
       }
     ];
@@ -239,8 +240,9 @@
             throw new Error("Failed to load " + section.datasetPath);
           }
 
-          const buffer = await response.arrayBuffer();
-          const drawings = parseQuickDrawBinary(buffer, section.samples.length);
+          const drawings = section.datasetType === "json"
+            ? parseQuickDrawJson(await response.json(), section.samples.length)
+            : parseQuickDrawBinary(await response.arrayBuffer(), section.samples.length);
 
           section.samples = section.samples.map((sample, index) => {
             const drawing = drawings[index];
@@ -644,7 +646,7 @@
     function setPredictionPlaceholder(messageKey = "imageClassifierTrainAndDraw") {
       predictionPlaceholderKey = messageKey;
       predictionLabelEl.textContent = "-";
-      predictionConfidenceEl.textContent = t(messageKey);
+      predictionConfidenceEl.textContent = messageKey === "imageClassifierDrawThenTest" ? "" : t(messageKey);
     }
 
     function getCanvasPoint(event) {
@@ -951,6 +953,42 @@
       }
 
       return drawings;
+    }
+
+    function parseQuickDrawJson(payload, limit) {
+      const drawings = [];
+      const sourceDrawings = Array.isArray(payload?.drawings) ? payload.drawings : [];
+
+      for (const entry of sourceDrawings) {
+        if (drawings.length >= limit) break;
+        const drawing = convertTimedStrokeDrawing(entry?.drawing);
+        if (drawing.length) {
+          drawings.push(drawing);
+        }
+      }
+
+      return drawings;
+    }
+
+    function convertTimedStrokeDrawing(drawing) {
+      if (!Array.isArray(drawing)) {
+        return [];
+      }
+
+      return drawing
+        .map((stroke) => {
+          if (!Array.isArray(stroke) || stroke.length < 2) {
+            return null;
+          }
+
+          const [xs, ys] = stroke;
+          if (!Array.isArray(xs) || !Array.isArray(ys) || !xs.length || !ys.length) {
+            return null;
+          }
+
+          return { xs, ys };
+        })
+        .filter(Boolean);
     }
 
     function renderQuickDrawPreview(drawing, size = 112) {
