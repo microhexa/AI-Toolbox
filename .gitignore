@@ -1,1 +1,4 @@
 scripts/extract_menu_doodles.py
+scripts/review_rule_based_difficulty.py
+scripts/__pycache__/review_rule_based_difficulty.cpython-311.pyc.2600738438704
+outputs/rule_based_difficulty_review.html

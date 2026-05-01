@@ -17,16 +17,11 @@
 
     <main id="rule-based-ai-shell" class="focus rule-quiz-shell">
       <section class="rule-stage" aria-labelledby="answer-panel-title">
-        <p class="rule-progress" id="rule-progress">1 / 10</p>
         <h2 id="answer-panel-title" class="rule-question" data-i18n="rulesPredictionQuestion">What will the AI choose?</h2>
-        <p class="rule-column-helper" id="rule-helper" data-i18n="rulesPredictionHelper">Pick the label you think the AI will choose for this drawing.</p>
         <div class="rule-play-area">
+          <div class="rule-progress" id="rule-progress" aria-label="Round progress"></div>
           <div class="rule-canvas-shell">
             <canvas id="quiz-doodle" width="320" height="320" aria-label="Doodle to classify"></canvas>
-            <div class="rule-ai-spoiler" aria-live="polite">
-              <span class="rule-ai-spoiler-label">AI:</span>
-              <span id="ai-answer-spoiler" class="rule-ai-spoiler-value is-concealed">Hidden for now</span>
-            </div>
           </div>
           <div class="answer-options" role="list">
             <button class="answer-option" type="button" data-answer="labelSun" data-i18n="labelSun">Sun</button>
@@ -46,7 +41,6 @@
             <p id="player-status" class="player-status">-</p>
             <ul id="rules-applied-list" class="rules-applied-list"></ul>
           </div>
-          <button id="next-round-btn" class="next-round-btn" type="button" hidden data-i18n="rulesNextRound">Next drawing</button>
         </section>
         <section id="rule-final-question" class="rule-final-question" hidden aria-live="polite">
           <h3 class="rule-final-title" data-i18n="rulesFinalQuestion">How does this AI make decisions?</h3>
@@ -55,7 +49,23 @@
             <button class="answer-option final-answer-option" type="button" data-final-answer="shapes" data-i18n="rulesFinalOptionShapes">It checks for specific shapes</button>
             <button class="answer-option final-answer-option" type="button" data-final-answer="random" data-i18n="rulesFinalOptionRandom">It guesses randomly</button>
           </div>
-          <p id="rule-final-feedback" class="rule-final-feedback"></p>
+        </section>
+        <section id="rule-feedback-overlay" class="rule-feedback-overlay" hidden aria-live="polite">
+          <div id="rule-feedback-card" class="rule-feedback-card" data-state="correct">
+            <p id="rule-feedback-result" class="rule-feedback-result">Correct</p>
+            <div class="rule-feedback-answers">
+              <p class="rule-feedback-line">
+                <span class="rule-feedback-label" data-i18n="rulesYouAnswered">You answered</span>
+                <span id="rule-feedback-player" class="rule-feedback-value">House</span>
+              </p>
+              <p class="rule-feedback-line">
+                <span class="rule-feedback-label" data-i18n="rulesAiAnswered">The AI answered</span>
+                <span id="rule-feedback-ai" class="rule-feedback-value">Fish</span>
+              </p>
+            </div>
+            <p id="rule-feedback-hint" class="rule-feedback-hint">Starting the next round...</p>
+            <button id="rule-feedback-next-btn" class="rule-feedback-next-btn" type="button">Next drawing</button>
+          </div>
         </section>
       </section>
     </main>
