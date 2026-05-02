@@ -554,7 +554,7 @@ function showHomeMenu(mode) {
 
 function startNewSession() {
     resetHomeQuizState();
-    sessionStorage.setItem(NEW_SESSION_QUIZ_KEY, "true");
+    sessionStorage.removeItem(NEW_SESSION_QUIZ_KEY);
     sessionStorage.setItem(PENDING_NEW_SESSION_RESET_KEY, "true");
     showHomeMenu(LEVEL_MENU_MODE);
 }
