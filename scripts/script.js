@@ -5,6 +5,7 @@ const CREDITS_MENU_MODE = "credits";
 const SESSION_MENU_MODE = "session";
 const LEVEL_MENU_MODE = "levels";
 const PROGRESS_KEYS = ["imageClassifierUnlocked", "chatbotUnlocked"];
+const LANGUAGE_STORAGE_KEY = "lang";
 const IMAGE_CLASSIFIER_UNLOCK_KEY = "imageClassifierUnlocked";
 const CHATBOT_UNLOCK_KEY = "chatbotUnlocked";
 const NEW_SESSION_QUIZ_KEY = "showLevelIntroQuiz";
@@ -560,7 +561,11 @@ function startNewSession() {
 
 function clearProgressForNewSession() {
     if (!hasPendingNewSessionReset()) return;
+    const savedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
     localStorage.clear();
+    if (savedLanguage) {
+        localStorage.setItem(LANGUAGE_STORAGE_KEY, savedLanguage);
+    }
     sessionStorage.removeItem(PENDING_NEW_SESSION_RESET_KEY);
 }
 

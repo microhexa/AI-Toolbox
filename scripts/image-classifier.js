@@ -111,9 +111,7 @@
 
     function updateDocumentLanguage() {
       document.documentElement.lang = currentLang === "da" ? "da" : "en";
-      document.title = currentLang === "da"
-        ? "AI Legepladsen | Billedklassifikator"
-        : "The AI Playground | Image Classifier";
+      document.title = t("pageTitleImageClassifier");
     }
 
     window.applyImageClassifierTranslations = function applyImageClassifierTranslations() {
