@@ -9,6 +9,10 @@ if (ruleQuizCanvas) {
   const ruleProgressEl = document.getElementById("rule-progress");
   const ruleQuestionEl = document.getElementById("answer-panel-title");
   const rulePlayAreaEl = document.querySelector(".rule-play-area");
+  const ruleCanvasOverlayEl = document.getElementById("quiz-doodle-overlay");
+  const ruleSequenceCalloutEl = document.getElementById("rule-sequence-callout");
+  const ruleSequenceStepCountEl = document.getElementById("rule-sequence-step-count");
+  const ruleSequenceStepTextEl = document.getElementById("rule-sequence-step-text");
   const ruleHelperEl = document.getElementById("rule-helper");
   const playerStatusEl = document.getElementById("player-status");
   const playerAnswerValueEl = document.getElementById("player-answer-value");
@@ -30,6 +34,8 @@ if (ruleQuizCanvas) {
   const FINAL_CORRECT_ANSWER = "shapes";
   const AUTO_ADVANCE_DELAY = 2800;
   const FINAL_AUTO_ADVANCE_DELAY = 3600;
+  const RULE_CHECK_STEP_DELAY = 2200;
+  const RULE_CHECK_FINISH_DELAY = 2600;
   const FIXED_OPENING_SAMPLE_KEYS = [
     { source: "full_raw_bee.ndjson", index: 26226, tier: "easy" },
     { source: "full_raw_crocodile.ndjson", index: 116015, tier: "easy" },
@@ -290,6 +296,10 @@ if (ruleQuizCanvas) {
   let answerChoicePool = ["labelSun", "labelHouse", "labelFish"];
   let autoAdvanceTimeoutId = null;
   let autoAdvancePaused = false;
+  let feedbackPlaybackComplete = false;
+  let feedbackStepIndex = -1;
+  let feedbackPreviewData = null;
+  let feedbackStepTimeoutId = null;
   let progressDots = [];
 
   function drawCanvasMessage(message) {
@@ -323,8 +333,31 @@ if (ruleQuizCanvas) {
     }
   }
 
+  function clearFeedbackStepTimer() {
+    if (feedbackStepTimeoutId !== null) {
+      window.clearTimeout(feedbackStepTimeoutId);
+      feedbackStepTimeoutId = null;
+    }
+  }
+
+  function resetFeedbackSequenceUi() {
+    feedbackStepIndex = -1;
+    feedbackPreviewData = null;
+
+    if (ruleSequenceCalloutEl) ruleSequenceCalloutEl.hidden = true;
+    if (ruleSequenceStepCountEl) ruleSequenceStepCountEl.textContent = "";
+    if (ruleSequenceStepTextEl) ruleSequenceStepTextEl.textContent = "";
+    if (ruleCanvasOverlayEl) {
+      const overlayCtx = ruleCanvasOverlayEl.getContext("2d");
+      overlayCtx.clearRect(0, 0, ruleCanvasOverlayEl.width, ruleCanvasOverlayEl.height);
+      ruleCanvasOverlayEl.hidden = true;
+    }
+    if (rulePageEl) rulePageEl.classList.remove("sequence-open");
+  }
+
   function advanceAfterReveal() {
     clearAutoAdvanceTimer();
+    clearFeedbackStepTimer();
     hideFeedbackOverlay();
 
     if (completedRounds >= TOTAL_ROUNDS) {
@@ -337,29 +370,14 @@ if (ruleQuizCanvas) {
 
   function hideFeedbackOverlay() {
     autoAdvancePaused = false;
+    feedbackPlaybackComplete = false;
+    clearFeedbackStepTimer();
+    resetFeedbackSequenceUi();
     if (feedbackOverlayEl) feedbackOverlayEl.hidden = true;
     if (rulePageEl) rulePageEl.classList.remove("overlay-open");
   }
 
-  function scheduleAutoAdvance() {
-    clearAutoAdvanceTimer();
-    autoAdvancePaused = false;
-
-    const delay = completedRounds >= TOTAL_ROUNDS ? FINAL_AUTO_ADVANCE_DELAY : AUTO_ADVANCE_DELAY;
-    autoAdvanceTimeoutId = window.setTimeout(() => {
-      advanceAfterReveal();
-    }, delay);
-  }
-
-  function updateFeedbackHint() {
-    if (!feedbackHintEl) return;
-
-    feedbackHintEl.textContent = autoAdvancePaused
-      ? t("rulesOverlayPaused")
-      : t("rulesOverlayAdvancing");
-  }
-
-  function showFeedbackOverlay(playerAnswer, aiAnswer) {
+  function showFeedbackPanel(playerAnswer, aiAnswer) {
     if (!feedbackOverlayEl || !feedbackCardEl) return;
 
     const isMatch = playerAnswer === aiAnswer;
@@ -380,6 +398,226 @@ if (ruleQuizCanvas) {
     feedbackOverlayEl.hidden = false;
     if (rulePageEl) rulePageEl.classList.add("overlay-open");
     scheduleAutoAdvance();
+  }
+
+  function scheduleAutoAdvance() {
+    clearAutoAdvanceTimer();
+    autoAdvancePaused = false;
+
+    const delay = completedRounds >= TOTAL_ROUNDS ? FINAL_AUTO_ADVANCE_DELAY : AUTO_ADVANCE_DELAY;
+    autoAdvanceTimeoutId = window.setTimeout(() => {
+      advanceAfterReveal();
+    }, delay);
+  }
+
+  function updateFeedbackHint() {
+    if (!feedbackHintEl) return;
+
+    if (!feedbackPlaybackComplete) {
+      feedbackHintEl.textContent = t("rulesOverlayChecking");
+      return;
+    }
+
+    feedbackHintEl.textContent = autoAdvancePaused
+      ? t("rulesOverlayPaused")
+      : t("rulesOverlayAdvancing");
+  }
+
+  function buildRuleExplanationText(rule, index) {
+    if (!rule?.conditions?.[index]) return "";
+
+    return rule.explanationKeys?.[index]
+      ? t(rule.explanationKeys[index])
+      : buildConditionText(rule.conditions[index]);
+  }
+
+  function buildRuleDisplaySteps(rule) {
+    if (!rule?.conditions?.length) return [];
+
+    const steps = [];
+    let explanationIndex = 0;
+
+    for (let index = 0; index < rule.conditions.length; index++) {
+      const condition = rule.conditions[index];
+      const nextCondition = rule.conditions[index + 1];
+      const shouldCombineAspectRange =
+        condition.feature === "aspectRatio" &&
+        condition.op === ">" &&
+        nextCondition?.feature === "aspectRatio" &&
+        nextCondition.op === "<" &&
+        Array.isArray(rule.explanationKeys) &&
+        rule.explanationKeys.length < rule.conditions.length;
+
+      if (shouldCombineAspectRange) {
+        const explanationKey = rule.explanationKeys?.[explanationIndex] || null;
+        steps.push({
+          primaryCondition: condition,
+          explanationText: explanationKey ? t(explanationKey) : buildConditionText(condition)
+        });
+        explanationIndex += 1;
+        index += 1;
+        continue;
+      }
+
+      const explanationKey = rule.explanationKeys?.[explanationIndex] || null;
+      steps.push({
+        primaryCondition: condition,
+        explanationText: explanationKey ? t(explanationKey) : buildConditionText(condition)
+      });
+      explanationIndex += 1;
+    }
+
+    return steps;
+  }
+
+  function drawRuleOverlayOnCanvas(condition, previewData) {
+    if (!ruleCanvasOverlayEl || !previewData) return;
+
+    const overlayCtx = ruleCanvasOverlayEl.getContext("2d");
+    const { normalizedCanvas, features, featureSize } = previewData;
+    const canvasWidth = ruleCanvasOverlayEl.width;
+    const canvasHeight = ruleCanvasOverlayEl.height;
+    const scale = canvasWidth / featureSize;
+    const bboxX = features.minX * scale;
+    const bboxY = features.minY * scale;
+    const bboxWidth = Math.max(1, features.boxWidth * scale);
+    const bboxHeight = Math.max(1, features.boxHeight * scale);
+    const highlight = "rgba(249, 199, 79, 0.28)";
+    const outline = "#f3722c";
+
+    overlayCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+    overlayCtx.fillStyle = "#f6f6f6";
+    overlayCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+    overlayCtx.drawImage(normalizedCanvas, 0, 0, canvasWidth, canvasHeight);
+
+    if (condition.feature === "topRatio") {
+      overlayCtx.fillStyle = highlight;
+      overlayCtx.fillRect(0, 0, canvasWidth, canvasHeight / 3);
+    } else if (condition.feature === "middleHRatio") {
+      overlayCtx.fillStyle = highlight;
+      overlayCtx.fillRect(0, canvasHeight / 3, canvasWidth, canvasHeight / 3);
+    } else if (condition.feature === "bottomRatio") {
+      overlayCtx.fillStyle = highlight;
+      overlayCtx.fillRect(0, (canvasHeight / 3) * 2, canvasWidth, canvasHeight / 3);
+    } else if (condition.feature === "leftRatio") {
+      overlayCtx.fillStyle = highlight;
+      overlayCtx.fillRect(0, 0, canvasWidth / 3, canvasHeight);
+    } else if (condition.feature === "rightRatio") {
+      overlayCtx.fillStyle = highlight;
+      overlayCtx.fillRect((canvasWidth / 3) * 2, 0, canvasWidth / 3, canvasHeight);
+    } else if (condition.feature === "verticalSymmetry") {
+      overlayCtx.strokeStyle = outline;
+      overlayCtx.setLineDash([12, 10]);
+      overlayCtx.lineWidth = 4;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(canvasWidth / 2, 20);
+      overlayCtx.lineTo(canvasWidth / 2, canvasHeight - 20);
+      overlayCtx.stroke();
+      overlayCtx.setLineDash([]);
+    } else if (condition.feature === "density") {
+      overlayCtx.fillStyle = condition.op === ">" ? "rgba(249, 175, 175, 0.24)" : "rgba(249, 199, 79, 0.18)";
+      overlayCtx.fillRect(bboxX, bboxY, bboxWidth, bboxHeight);
+    } else if (condition.feature === "aspectRatio") {
+      const squareSide = Math.min(bboxHeight, bboxWidth, canvasWidth * 0.72);
+      const squareX = bboxX + (bboxWidth - squareSide) / 2;
+      const squareY = bboxY + (bboxHeight - squareSide) / 2;
+      overlayCtx.fillStyle = "rgba(249, 199, 79, 0.18)";
+      overlayCtx.fillRect(squareX, squareY, squareSide, squareSide);
+      overlayCtx.strokeStyle = outline;
+      overlayCtx.lineWidth = 4;
+      overlayCtx.setLineDash([10, 8]);
+      overlayCtx.strokeRect(squareX, squareY, squareSide, squareSide);
+      overlayCtx.setLineDash([]);
+    }
+
+    ruleCanvasOverlayEl.hidden = false;
+  }
+
+  function finishFeedbackSequence() {
+    feedbackPlaybackComplete = true;
+    clearFeedbackStepTimer();
+    resetFeedbackSequenceUi();
+    showFeedbackPanel(currentRound.playerAnswer, currentRound.aiAnswer);
+  }
+
+  function renderFeedbackRuleStep(rule, index) {
+    const displaySteps = buildRuleDisplaySteps(rule);
+    const step = displaySteps[index];
+    if (!step) return;
+
+    feedbackStepIndex = index;
+
+    if (rulePageEl) rulePageEl.classList.add("sequence-open");
+    if (ruleSequenceCalloutEl) ruleSequenceCalloutEl.hidden = false;
+    if (ruleSequenceStepCountEl) {
+      ruleSequenceStepCountEl.textContent = `${t("rulesOverlayStepCounterLabel")} ${index + 1}/${displaySteps.length}`;
+    }
+    if (ruleSequenceStepTextEl) {
+      ruleSequenceStepTextEl.textContent = step.explanationText;
+    }
+    drawRuleOverlayOnCanvas(step.primaryCondition, feedbackPreviewData);
+  }
+
+  function queueNextFeedbackRuleStep(rule, index) {
+    const displaySteps = buildRuleDisplaySteps(rule);
+    if (!displaySteps.length) {
+      finishFeedbackSequence();
+      return;
+    }
+
+    const isLastVisibleStep = index >= displaySteps.length - 1;
+    const delay = isLastVisibleStep ? RULE_CHECK_FINISH_DELAY : RULE_CHECK_STEP_DELAY;
+
+    clearFeedbackStepTimer();
+    feedbackStepTimeoutId = window.setTimeout(() => {
+      if (isLastVisibleStep) {
+        finishFeedbackSequence();
+        return;
+      }
+
+      renderFeedbackRuleStep(rule, index + 1);
+      queueNextFeedbackRuleStep(rule, index + 1);
+    }, delay);
+  }
+
+  function playFeedbackSequence(rule) {
+    clearFeedbackStepTimer();
+    resetFeedbackSequenceUi();
+    feedbackPlaybackComplete = false;
+    if (feedbackOverlayEl) feedbackOverlayEl.hidden = true;
+    if (rulePageEl) rulePageEl.classList.remove("overlay-open");
+
+    if (!ruleSequenceCalloutEl || !ruleCanvasOverlayEl) {
+      finishFeedbackSequence();
+      return;
+    }
+
+    const displaySteps = buildRuleDisplaySteps(rule);
+
+    if (!displaySteps.length) {
+      if (rulePageEl) rulePageEl.classList.add("sequence-open");
+      if (ruleSequenceCalloutEl) ruleSequenceCalloutEl.hidden = false;
+      if (ruleSequenceStepCountEl) ruleSequenceStepCountEl.textContent = "";
+      if (ruleSequenceStepTextEl) ruleSequenceStepTextEl.textContent = t("rulesExplainFallback");
+      if (ruleCanvasOverlayEl) ruleCanvasOverlayEl.hidden = true;
+      clearFeedbackStepTimer();
+      feedbackStepTimeoutId = window.setTimeout(() => {
+        finishFeedbackSequence();
+      }, RULE_CHECK_FINISH_DELAY);
+      return;
+    }
+
+    feedbackPreviewData = currentRound?.sample?.drawing
+      ? createRulePreviewData(currentRound.sample.drawing, ruleCanvasOverlayEl.width, 64)
+      : null;
+
+    renderFeedbackRuleStep(rule, 0);
+    queueNextFeedbackRuleStep(rule, 0);
+  }
+
+  function showFeedbackOverlay(playerAnswer, aiAnswer, rule) {
+    feedbackPlaybackComplete = false;
+    playFeedbackSequence(rule);
   }
 
   function pauseAutoAdvanceForReveal() {
@@ -429,6 +667,9 @@ if (ruleQuizCanvas) {
           : t("rulesOverlayNextNow");
       }
       updateFeedbackHint();
+      if (feedbackStepIndex >= 0) {
+        renderFeedbackRuleStep(currentRound.rule, feedbackStepIndex);
+      }
       playerAnswerValueEl.textContent = t(currentRound.playerAnswer);
       playerStatusEl.textContent = currentRound.playerAnswer === currentRound.aiAnswer
         ? t("rulesPlayerMatched")
@@ -844,7 +1085,6 @@ if (ruleQuizCanvas) {
 
     const highlight = "rgba(249, 199, 79, 0.26)";
     const outline = "#f3722c";
-    const inkOutline = "#4a4e69";
 
     if (condition.feature === "topRatio") {
       ctx.fillStyle = highlight;
@@ -886,10 +1126,6 @@ if (ruleQuizCanvas) {
       ctx.setLineDash([]);
     }
 
-    ctx.strokeStyle = inkOutline;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(bboxX, bboxY, bboxWidth, bboxHeight);
-
     return canvas;
   }
 
@@ -909,7 +1145,10 @@ if (ruleQuizCanvas) {
       ? createRulePreviewData(currentRound.sample.drawing)
       : null;
 
-    rule.conditions.forEach((condition, index) => {
+    const displaySteps = buildRuleDisplaySteps(rule);
+
+    displaySteps.forEach(step => {
+      const condition = step.primaryCondition;
       const item = document.createElement("li");
       item.className = "rule-condition-item";
 
@@ -922,22 +1161,13 @@ if (ruleQuizCanvas) {
 
       const text = document.createElement("p");
       text.className = "rule-condition-text";
-      text.textContent = rule.explanationKeys[index]
-        ? t(rule.explanationKeys[index])
-        : buildConditionText(condition);
-
-      const helper = document.createElement("p");
-      helper.className = "rule-condition-helper";
-      helper.textContent = buildConditionText(condition);
+      text.textContent = step.explanationText;
 
       if (visualization) {
         item.appendChild(visualization);
       }
 
       body.appendChild(text);
-      if (helper.textContent) {
-        body.appendChild(helper);
-      }
       item.appendChild(body);
       rulesAppliedListEl.appendChild(item);
     });
@@ -945,7 +1175,7 @@ if (ruleQuizCanvas) {
 
   function updateRevealChipLabels() {
     if (rulesRevealChipEl) {
-      const ruleCount = currentRound?.rule?.explanationKeys?.length || 0;
+      const ruleCount = buildRuleDisplaySteps(currentRound?.rule).length;
       const countLabel = ruleCount === 1 ? t("rulesRevealRuleUsedSingular") : t("rulesRevealRuleUsedPlural");
       rulesRevealChipEl.textContent = `${ruleCount} ${countLabel}`;
     }
@@ -1072,9 +1302,13 @@ if (ruleQuizCanvas) {
     const allScoredSamples = samplePool
       .filter(sample => Number.isFinite(sample.clarityScore))
       .sort((a, b) => b.clarityScore - a.clarityScore);
+    const round4MonaLisaSample = allScoredSamples.find(sample =>
+      sample.labelKey === "labelMonaLisa" && sample.aiAnswer === "labelMonaLisa"
+    );
     const round8ReplacementSample = allScoredSamples.find(sample => sampleMatchesKey(sample, ROUND8_REPLACEMENT_KEY));
     const round9ReplacementSample = allScoredSamples.find(sample => sampleMatchesKey(sample, ROUND9_REPLACEMENT_KEY));
     const scoredSamples = allScoredSamples.filter(sample =>
+      sample !== round4MonaLisaSample &&
       !sampleMatchesKey(sample, ROUND8_REPLACEMENT_KEY) &&
       !sampleMatchesKey(sample, ROUND9_REPLACEMENT_KEY)
     );
@@ -1144,6 +1378,9 @@ if (ruleQuizCanvas) {
         finalQueue[9] = currentRound8;
       }
     }
+    if (finalQueue.length >= 4 && round4MonaLisaSample) {
+      finalQueue[3] = round4MonaLisaSample;
+    }
 
     return finalQueue;
   }
@@ -1194,7 +1431,7 @@ if (ruleQuizCanvas) {
     updateRevealChipLabels();
     if (revealSection) revealSection.hidden = true;
     completedRounds += 1;
-    showFeedbackOverlay(playerAnswer, currentRound.aiAnswer);
+    showFeedbackOverlay(playerAnswer, currentRound.aiAnswer, currentRound.rule);
   }
 
   function showFinalQuestion() {

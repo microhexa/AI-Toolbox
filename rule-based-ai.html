@@ -21,7 +21,14 @@
         <div class="rule-play-area">
           <div class="rule-progress" id="rule-progress" aria-label="Round progress"></div>
           <div class="rule-canvas-shell">
-            <canvas id="quiz-doodle" width="320" height="320" aria-label="Doodle to classify"></canvas>
+            <div class="rule-canvas-stage">
+              <div id="rule-sequence-callout" class="rule-sequence-callout" hidden aria-live="polite">
+                <p id="rule-sequence-step-count" class="rule-sequence-step-count">Rule check 1/3</p>
+                <p id="rule-sequence-step-text" class="rule-sequence-step-text">The drawing is wider than it is tall.</p>
+              </div>
+              <canvas id="quiz-doodle" width="320" height="320" aria-label="Doodle to classify"></canvas>
+              <canvas id="quiz-doodle-overlay" width="320" height="320" aria-hidden="true" hidden></canvas>
+            </div>
           </div>
           <div class="answer-options" role="list">
             <button class="answer-option" type="button" data-answer="labelSun" data-i18n="labelSun">Sun</button>
