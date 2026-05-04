@@ -516,6 +516,27 @@ function renderHomeSiteTitle() {
         return;
     }
 
+    if (currentLang === "da") {
+        const hammerIndex = secondWord.indexOf("t");
+        if (hammerIndex === -1) {
+            titleEl.textContent = titleText;
+            return;
+        }
+
+        const beforeHammer = secondWord.slice(0, hammerIndex);
+        const afterHammer = secondWord.slice(hammerIndex + 1);
+
+        titleEl.innerHTML = `
+          <span class="hero-title-word">${firstWord}</span>
+          <span class="hero-title-word">
+            <span>${beforeHammer}</span>
+            <img class="hero-title-icon" src="./images/hammer_19.png" alt="t">
+            <span>${afterHammer}</span>
+          </span>
+        `;
+        return;
+    }
+
     const secondWordFirstLetter = secondWord.charAt(0);
     const secondWordRest = secondWord.slice(1);
 
