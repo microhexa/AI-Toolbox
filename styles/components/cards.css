@@ -45,6 +45,23 @@
     white-space: nowrap;
 }
 
+.hero-title-word {
+    display: inline-flex;
+    align-items: flex-end;
+}
+
+.hero-title-word + .hero-title-word {
+    margin-left: 0em;
+}
+
+.hero-title-icon {
+    width: 0.9em;
+    height: 0.9em;
+    object-fit: contain;
+    margin: 0 -0.15em 0.03em 0;
+    vertical-align: baseline;
+}
+
 .home-screens {
     display: flex;
     width: 300%;
@@ -458,7 +475,7 @@
     margin-top: 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 24px;
     position: relative;
     z-index: 1;
 }

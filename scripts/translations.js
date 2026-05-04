@@ -504,11 +504,36 @@ function setLanguage(lang) {
     localStorage.setItem("lang", lang);
 }
 
+function renderHomeSiteTitle() {
+    const titleEl = document.getElementById("home-site-title");
+    if (!titleEl) return;
+
+    const titleText = t("siteTitle");
+    const [firstWord = "", secondWord = ""] = titleText.split(" ");
+
+    if (!secondWord) {
+        titleEl.textContent = titleText;
+        return;
+    }
+
+    const secondWordFirstLetter = secondWord.charAt(0);
+    const secondWordRest = secondWord.slice(1);
+
+    titleEl.innerHTML = `
+      <span class="hero-title-word">${firstWord}</span>
+      <span class="hero-title-word">
+        <img class="hero-title-icon" src="./images/hammer_19.png" alt="${secondWordFirstLetter}">
+        <span>${secondWordRest}</span>
+      </span>
+    `;
+}
+
 function applyTranslations() {
     document.querySelectorAll("[data-i18n]").forEach(el => {
         const key = el.dataset.i18n;
         el.textContent = translations[currentLang][key];
     });
+    renderHomeSiteTitle();
     if (typeof window.applyImageClassifierTranslations === "function") {
         window.applyImageClassifierTranslations();
     }
