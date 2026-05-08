@@ -1702,6 +1702,10 @@
   margin: 22px 0 14px;
 }
 
+#training-status {
+  margin-top: -10px;
+}
+
 .progress-fill {
   height: 100%;
   width: 0;
