@@ -18,7 +18,6 @@
     <div id="training-popup" class="popup hidden" aria-hidden="true">
       <div class="popup-content training-popup">
         <h2 data-i18n="imageClassifierPopupTitle">TrÃ¦ning af din model</h2>
-        <p data-i18n="imageClassifierPopupIntro">De valgte doodles sendes til den lokale backend og bruges til at trÃ¦ne en lille billedklassifikator.</p>
 
         <div class="progress-shell" aria-hidden="true">
           <div id="training-progress" class="progress-fill"></div>
@@ -42,6 +41,10 @@
         </div>
 
         <div id="training-backend-note" class="backend-note"></div>
+
+        <div class="training-popup-actions">
+          <button id="training-popup-continue-btn" class="classifier-continue-btn" type="button" data-i18n="imageClassifierContinueToTesting" disabled>Continue to testing</button>
+        </div>
       </div>
     </div>
 
@@ -185,14 +188,9 @@
                   <div id="training-review-hint" class="result-subtle training-review-hint">Pick at least 2 classes</div>
                 </div>
 
-                <div class="train-actions">
-                  <button id="clear-selection-btn" class="classifier-secondary-btn" type="button" data-i18n="imageClassifierClear">Ryd</button>
-                  <button id="train-model-btn" type="button" data-i18n="imageClassifierTrainModel">TrÃ¦n model</button>
-                </div>
-
                 <div class="classifier-nav-actions">
                   <button id="back-to-doodles-btn" class="classifier-secondary-btn" type="button" data-i18n="menuBack">Back</button>
-                  <button id="to-testing-btn" class="classifier-continue-btn" type="button" data-i18n="imageClassifierContinueToTesting" disabled>Continue to testing</button>
+                  <button id="train-model-btn" class="classifier-continue-btn" type="button" data-i18n="imageClassifierTrainModel">TrÃ¦n model</button>
                 </div>
               </div>
             </div>

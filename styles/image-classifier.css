@@ -1721,6 +1721,15 @@
   margin-top: 6px;
 }
 
+.training-popup-actions {
+  display: flex;
+  margin-top: 6px;
+}
+
+.training-popup-actions > button {
+  flex: 1;
+}
+
 .popup-metric {
   position: relative;
   border: 3px solid var(--classifier-frame);
@@ -1743,7 +1752,7 @@
 }
 
 #training-status {
-  font-size: var(--classifier-font-md);
+  font-size: 1.48rem;
   line-height: 1.4;
 }
 

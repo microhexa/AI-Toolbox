@@ -62,10 +62,8 @@
     const trainingReviewCountEl = document.getElementById("training-review-count");
     const trainingReviewHintEl = document.getElementById("training-review-hint");
     const trainingReviewTagsEl = document.getElementById("training-review-tags");
-    const clearSelectionBtn = document.getElementById("clear-selection-btn");
     const trainModelBtn = document.getElementById("train-model-btn");
     const toDoodlesBtn = document.getElementById("to-doodles-btn");
-    const toTestingBtn = document.getElementById("to-testing-btn");
     const backToClassesBtn = document.getElementById("back-to-classes-btn");
     const backToDoodlesBtn = document.getElementById("back-to-doodles-btn");
     const trainingPopup = document.getElementById("training-popup");
@@ -85,6 +83,7 @@
     const trainingClassesEl = document.getElementById("training-classes");
     const trainingSamplesEl = document.getElementById("training-samples");
     const trainingBackendNoteEl = document.getElementById("training-backend-note");
+    const trainingPopupContinueBtn = document.getElementById("training-popup-continue-btn");
     const resetBtn = document.getElementById("reset-btn");
     const undoBtn = document.getElementById("undo-btn");
     const redoBtn = document.getElementById("redo-btn");
@@ -196,9 +195,7 @@
     document.getElementById("redo-btn").addEventListener("click", handleRedo);
     document.getElementById("classify-btn").addEventListener("click", classifyDrawing);
     trainModelBtn.addEventListener("click", trainModel);
-    clearSelectionBtn.addEventListener("click", clearSelection);
     toDoodlesBtn.addEventListener("click", () => goToStep(1));
-    toTestingBtn.addEventListener("click", () => goToStep(3));
     backToClassesBtn.addEventListener("click", () => goToStep(0, { force: true }));
     backToDoodlesBtn.addEventListener("click", () => goToStep(1, { force: true }));
     prevDoodleRoundBtn.addEventListener("click", () => goToDoodleRound(currentDoodleRoundIndex - 1));
@@ -207,6 +204,7 @@
     confirmAddDoodleBtn.addEventListener("click", commitCustomDoodle);
     cancelCustomClassBtn.addEventListener("click", closeCustomClassPopup);
     confirmCustomClassBtn.addEventListener("click", commitCustomClassName);
+    trainingPopupContinueBtn.addEventListener("click", continueFromTrainingPopup);
     addDoodlePopup.addEventListener("click", (event) => {
       if (event.target === addDoodlePopup) {
         closeAddDoodlePopup();
@@ -682,9 +680,7 @@
       }
 
       trainModelBtn.disabled = !hasEnoughClasses || !hasSamplesForEachClass || trainingInProgress;
-      clearSelectionBtn.disabled = (classCount === 0 && doodleCount === 0) || trainingInProgress;
       toDoodlesBtn.disabled = classCount < 2 || trainingInProgress;
-      toTestingBtn.disabled = !modelReady || trainingInProgress;
       if (classStepEl) {
         classStepEl.classList.add("classifier-step-active");
       }
@@ -1038,6 +1034,7 @@
       trainingClassesEl.textContent = String(labelGroups.length);
       trainingSamplesEl.textContent = String(selectedSamples.length);
       trainingBackendNoteEl.textContent = "";
+      trainingPopupContinueBtn.disabled = true;
 
       showTrainingPopup();
       setTrainingProgress(0, "imageClassifierPreparingData");
@@ -1085,7 +1082,7 @@
           backend: t("imageClassifierBackendConnected"),
           classes: labelGroups.length,
           samples: selectedSamples.length,
-          note: t("imageClassifierTrainingFinished")
+          note: ""
         });
       } catch (error) {
         handleTrainingFailure(error, {
@@ -1114,11 +1111,8 @@
       handleResetCanvas();
       setPredictionPlaceholder("imageClassifierDrawThenTest");
       updateSelectionUI();
-      window.setTimeout(() => {
-        hideTrainingPopup();
-        goToStep(2, { force: true });
-        toTestingBtn.focus();
-      }, 550);
+      trainingPopupContinueBtn.disabled = false;
+      trainingPopupContinueBtn.focus();
     }
 
     function handleTrainingFailure(error, details) {
@@ -1142,6 +1136,7 @@
       trainingClassesEl.textContent = String(details.classes);
       trainingSamplesEl.textContent = String(details.samples);
       trainingBackendNoteEl.textContent = getTrainingErrorMessage(error);
+      trainingPopupContinueBtn.disabled = true;
       updateSelectionUI();
     }
 
@@ -1161,6 +1156,13 @@
     function hideTrainingPopup() {
       trainingPopup.classList.add("hidden");
       trainingPopup.setAttribute("aria-hidden", "true");
+    }
+
+    function continueFromTrainingPopup() {
+      if (trainingPopupContinueBtn.disabled || !modelReady || trainingInProgress) return;
+      hideTrainingPopup();
+      goToStep(3, { force: true });
+      document.getElementById("classify-btn")?.focus();
     }
 
     function startTrainingAnimation() {}
