@@ -3,7 +3,7 @@
         id: "sun",
         labelKey: "imageClassifierClassSun",
         datasetPath: "./images/full_binary_sun.bin",
-        samples: Array.from({ length: 15 }, (_, index) => ({
+        samples: Array.from({ length: 40 }, (_, index) => ({
           id: `sun-${index + 1}`,
           preview: `SUN\nDOODLE ${index + 1}`
         }))
@@ -12,7 +12,7 @@
         id: "fish",
         labelKey: "imageClassifierClassFish",
         datasetPath: "./images/full_binary_fish.bin",
-        samples: Array.from({ length: 15 }, (_, index) => ({
+        samples: Array.from({ length: 40 }, (_, index) => ({
           id: `fish-${index + 1}`,
           preview: `FISH\nDOODLE ${index + 1}`
         }))
@@ -21,7 +21,7 @@
         id: "house",
         labelKey: "imageClassifierClassHouse",
         datasetPath: "./images/full_binary_house.bin",
-        samples: Array.from({ length: 15 }, (_, index) => ({
+        samples: Array.from({ length: 40 }, (_, index) => ({
           id: `house-${index + 1}`,
           preview: `HOUSE\nDOODLE ${index + 1}`
         }))
@@ -29,22 +29,25 @@
       {
         id: "hockey-stick",
         labelKey: "imageClassifierClassAnimalMigration",
-        datasetPath: "./images/menu-doodles/hockey_stick.json",
-        datasetType: "json",
-        samples: Array.from({ length: 15 }, (_, index) => ({
+        datasetPath: "./images/full_binary_hockey stick.bin",
+        skippedSampleIndexes: [30],
+        samples: Array.from({ length: 40 }, (_, index) => ({
           id: `hockey-stick-${index + 1}`,
           preview: `HOCKEY\nSTICK ${index + 1}`
+        }))
+      },
+      {
+        id: "mona-lisa",
+        labelKey: "imageClassifierClassMonaLisa",
+        datasetPath: "./images/full_binary_The Mona Lisa.bin",
+        samples: Array.from({ length: 40 }, (_, index) => ({
+          id: `mona-lisa-${index + 1}`,
+          preview: `MONA\nLISA ${index + 1}`
         }))
       }
     ];
 
-    const doodleSamples = doodleSections.flatMap((section) =>
-      section.samples.map((sample) => ({
-        ...sample,
-        labelId: section.id,
-        label: getSectionLabel(section)
-      }))
-    );
+    const doodleSamples = [];
 
     const classPicker = document.getElementById("class-picker");
     const doodleBrowser = document.getElementById("doodle-browser");
@@ -52,16 +55,30 @@
     const doodleStepEl = document.getElementById("classifier-doodle-step");
     const selectionCountEl = document.getElementById("selection-count");
     const selectionHintEl = document.getElementById("selection-hint");
+    const doodleRoundSummaryEl = document.getElementById("doodle-round-summary");
+    const trainingChecklistItems = Array.from(document.querySelectorAll("[data-training-check]"));
+    const prevDoodleRoundBtn = document.getElementById("prev-doodle-round-btn");
+    const nextDoodleRoundBtn = document.getElementById("next-doodle-round-btn");
     const trainingReviewCountEl = document.getElementById("training-review-count");
     const trainingReviewHintEl = document.getElementById("training-review-hint");
+    const trainingReviewTagsEl = document.getElementById("training-review-tags");
     const clearSelectionBtn = document.getElementById("clear-selection-btn");
     const trainModelBtn = document.getElementById("train-model-btn");
     const toDoodlesBtn = document.getElementById("to-doodles-btn");
-    const toTrainingBtn = document.getElementById("to-training-btn");
     const toTestingBtn = document.getElementById("to-testing-btn");
     const backToClassesBtn = document.getElementById("back-to-classes-btn");
     const backToDoodlesBtn = document.getElementById("back-to-doodles-btn");
     const trainingPopup = document.getElementById("training-popup");
+    const addDoodlePopup = document.getElementById("add-doodle-popup");
+    const addDoodleCanvas = document.getElementById("add-doodle-canvas");
+    const addDoodleCtx = addDoodleCanvas.getContext("2d");
+    const addDoodlePopupCopyEl = document.getElementById("add-doodle-popup-copy");
+    const cancelAddDoodleBtn = document.getElementById("cancel-add-doodle-btn");
+    const confirmAddDoodleBtn = document.getElementById("confirm-add-doodle-btn");
+    const customClassPopup = document.getElementById("custom-class-popup");
+    const customClassNameInput = document.getElementById("custom-class-name-input");
+    const cancelCustomClassBtn = document.getElementById("cancel-custom-class-btn");
+    const confirmCustomClassBtn = document.getElementById("confirm-custom-class-btn");
     const trainingProgressEl = document.getElementById("training-progress");
     const trainingStatusEl = document.getElementById("training-status");
     const trainingPercentEl = document.getElementById("training-percent");
@@ -83,6 +100,8 @@
     const testingModelTrainedAtEl = document.getElementById("testing-model-trained-at");
     const predictionLabelEl = document.getElementById("prediction-label");
     const predictionConfidenceEl = document.getElementById("prediction-confidence");
+    const predictionOtherHeadingEl = document.getElementById("prediction-other-heading");
+    const predictionRankedListEl = document.getElementById("prediction-ranked-list");
     const classifierJourney = document.getElementById("classifier-journey");
     const classifierJourneySteps = Array.from(document.querySelectorAll("[data-step-target]"));
     const classifierJourneyTrack = document.querySelector(".classifier-journey-steps");
@@ -93,6 +112,7 @@
     const ctx = canvas.getContext("2d");
 
     let selectedClasses = new Set();
+    let selectedClassOrder = [];
     let selectedDoodles = new Set();
     let history = [];
     let redoHistory = [];
@@ -108,9 +128,19 @@
     let predictionPlaceholderKey = "imageClassifierTrainAndDraw";
     let canvasHelperKey = "imageClassifierTrainAndDraw";
     let currentStepIndex = 0;
+    let currentDoodleRoundIndex = 0;
+    let customDoodleCounter = 0;
+    let customClassCounter = 0;
+    let addDoodleTargetClassId = null;
+    let addDoodleIsDrawing = false;
+    let addDoodleStrokeMoved = false;
+    let addDoodleHasDrawn = false;
+    const classifierImageSize = 64;
+    const doodlePanelScrollTopByClass = new Map();
+    const deleteDoodleIconMarkup = `<span class="doodle-delete-mark" aria-hidden="true">x</span>`;
 
     function getSectionLabel(section) {
-      return t(section.labelKey);
+      return section.customLabel || t(section.labelKey);
     }
 
     function formatMessage(key, values = {}) {
@@ -168,58 +198,152 @@
     trainModelBtn.addEventListener("click", trainModel);
     clearSelectionBtn.addEventListener("click", clearSelection);
     toDoodlesBtn.addEventListener("click", () => goToStep(1));
-    toTrainingBtn.addEventListener("click", () => goToStep(2));
     toTestingBtn.addEventListener("click", () => goToStep(3));
     backToClassesBtn.addEventListener("click", () => goToStep(0, { force: true }));
     backToDoodlesBtn.addEventListener("click", () => goToStep(1, { force: true }));
+    prevDoodleRoundBtn.addEventListener("click", () => goToDoodleRound(currentDoodleRoundIndex - 1));
+    nextDoodleRoundBtn.addEventListener("click", handleNextDoodleRoundAction);
+    cancelAddDoodleBtn.addEventListener("click", closeAddDoodlePopup);
+    confirmAddDoodleBtn.addEventListener("click", commitCustomDoodle);
+    cancelCustomClassBtn.addEventListener("click", closeCustomClassPopup);
+    confirmCustomClassBtn.addEventListener("click", commitCustomClassName);
+    addDoodlePopup.addEventListener("click", (event) => {
+      if (event.target === addDoodlePopup) {
+        closeAddDoodlePopup();
+      }
+    });
+    customClassPopup.addEventListener("click", (event) => {
+      if (event.target === customClassPopup) {
+        closeCustomClassPopup();
+      }
+    });
+    document.addEventListener("keydown", handleAddDoodlePopupKeydown);
     classifierJourneySteps.forEach((button) => {
       button.addEventListener("click", () => goToStep(Number(button.dataset.stepTarget)));
     });
+    setupAddDoodleCanvas();
 
     function renderClassOptions() {
+      const addTileMarkup = `
+        <div class="class-option-shell">
+          <button class="class-option class-option-custom class-option-add" type="button" data-add-class="true" aria-label="${t("imageClassifierCustomClassTitle")}">
+            <span class="class-option-add-mark" aria-hidden="true">${t("imageClassifierClassCustom")}</span>
+          </button>
+        </div>
+      `;
+
       classPicker.innerHTML = doodleSections.map((section) => {
         const active = selectedClasses.has(section.id) ? " active" : "";
+        const customClass = section.isCustomClass ? " class-option-custom" : "";
         return `
-          <button class="class-option${active}" type="button" data-class-id="${section.id}" aria-pressed="${selectedClasses.has(section.id) ? "true" : "false"}">
-            <span class="class-option-check" aria-hidden="true"></span>
-            ${getSectionLabel(section)}
-          </button>
+          <div class="class-option-shell">
+            <button class="class-option${active}${customClass}" type="button" data-class-id="${section.id}" aria-pressed="${selectedClasses.has(section.id) ? "true" : "false"}">
+              <span class="class-option-check" aria-hidden="true"></span>
+              ${getSectionLabel(section)}
+            </button>
+            ${section.isCustomClass ? `
+              <button class="class-option-delete-btn" type="button" data-delete-class-id="${section.id}" aria-label="${t("imageClassifierDeleteCustomClass")}">
+                <span class="class-option-delete-mark" aria-hidden="true">x</span>
+              </button>
+            ` : ""}
+          </div>
         `;
-      }).join("");
+      }).join("") + addTileMarkup;
 
       classPicker.querySelectorAll("[data-class-id]").forEach((button) => {
         button.addEventListener("click", () => toggleClassSelection(button.dataset.classId));
       });
+      classPicker.querySelectorAll("[data-add-class]").forEach((button) => {
+        button.addEventListener("click", openCustomClassPopup);
+      });
+      classPicker.querySelectorAll("[data-delete-class-id]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          removeCustomClass(button.dataset.deleteClassId);
+        });
+      });
     }
 
     function renderDoodleTiles() {
-      const visibleSections = doodleSections.filter((section) => selectedClasses.has(section.id));
+      const visibleSections = getSelectedSectionsInOrder();
+      clampCurrentDoodleRound(visibleSections.length);
 
       if (!visibleSections.length) {
         doodleBrowser.innerHTML = `<div class="empty-browser">${t("imageClassifierChooseClassesAbove")}</div>`;
+        updateDoodleRoundUI(visibleSections);
         return;
       }
 
-      doodleBrowser.innerHTML = visibleSections.map((section) => `
-        <section class="doodle-section" aria-labelledby="section-${section.id}">
-          <h3 id="section-${section.id}" class="doodle-section-title">${getSectionLabel(section).toLowerCase()}</h3>
-          <div class="doodle-grid">
-            ${section.samples.map((sample) => {
-              const selected = selectedDoodles.has(sample.id) ? " selected" : "";
-              return `
-                <button class="doodle-tile${selected}" type="button" data-doodle-id="${sample.id}" aria-pressed="${selected ? "true" : "false"}">
-                  <span class="doodle-check" aria-hidden="true"></span>
-                  <div class="doodle-preview">${getDoodlePreviewMarkup(sample)}</div>
-                </button>
-              `;
-            }).join("")}
+      doodleBrowser.innerHTML = `
+        <div class="doodle-round-viewport">
+          <div class="doodle-round-track" style="transform: translateX(-${currentDoodleRoundIndex * 100}%);">
+            ${visibleSections.map((section, index) => `
+              <section class="doodle-section doodle-round-panel" aria-labelledby="section-${section.id}" aria-hidden="${index === currentDoodleRoundIndex ? "false" : "true"}">
+                <div class="doodle-section-header">
+                  <h3 id="section-${section.id}" class="doodle-section-title">
+                    <span class="doodle-section-label">${getSectionLabel(section).toLowerCase()}</span>
+                    <span class="doodle-round-tools">
+                      <button class="classifier-secondary-btn doodle-tool-btn" type="button" data-doodle-tool="select-all" data-i18n="imageClassifierSelectAllForClass">${t("imageClassifierSelectAllForClass")}</button>
+                      <button class="classifier-secondary-btn doodle-tool-btn" type="button" data-doodle-tool="clear-class" data-i18n="imageClassifierClearClass">${t("imageClassifierClearClass")}</button>
+                    </span>
+                  </h3>
+                </div>
+                <div class="doodle-round-scroll-shell">
+                  <div class="doodle-round-panel-inner" data-scroll-class="${section.id}">
+                    <div class="doodle-grid">
+                      ${section.samples.map((sample) => {
+                        const selected = selectedDoodles.has(sample.id) ? " selected" : "";
+                        return `
+                          <div class="doodle-tile-shell${sample.isCustom ? " has-delete" : ""}">
+                            <button class="doodle-tile${selected}" type="button" data-doodle-id="${sample.id}" aria-pressed="${selected ? "true" : "false"}">
+                              <span class="doodle-check" aria-hidden="true"></span>
+                              <div class="doodle-preview">${getDoodlePreviewMarkup(sample)}</div>
+                            </button>
+                            ${sample.isCustom ? `
+                              <button class="doodle-delete-btn" type="button" data-delete-doodle-id="${sample.id}" aria-label="${t("imageClassifierDeleteCustomDoodle")}">
+                                ${deleteDoodleIconMarkup}
+                              </button>
+                            ` : ""}
+                          </div>
+                        `;
+                      }).join("")}
+                      <button class="doodle-tile doodle-add-tile" type="button" data-add-doodle-for="${section.id}" aria-label="${t("imageClassifierAddDoodleAria")}">
+                        <div class="doodle-add-mark" aria-hidden="true">+</div>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="doodle-scrollbar" aria-hidden="true">
+                    <div class="doodle-scrollbar-thumb"></div>
+                  </div>
+                </div>
+              </section>
+            `).join("")}
           </div>
-        </section>
-      `).join("");
+        </div>
+      `;
 
       doodleBrowser.querySelectorAll("[data-doodle-id]").forEach((tile) => {
         tile.addEventListener("click", () => toggleDoodle(tile.dataset.doodleId));
       });
+      doodleBrowser.querySelectorAll("[data-add-doodle-for]").forEach((button) => {
+        button.addEventListener("click", () => openAddDoodlePopup(button.dataset.addDoodleFor));
+      });
+      doodleBrowser.querySelectorAll("[data-delete-doodle-id]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          removeCustomDoodle(button.dataset.deleteDoodleId);
+        });
+      });
+      doodleBrowser.querySelectorAll('[data-doodle-tool="select-all"]').forEach((button) => {
+        button.addEventListener("click", selectAllForCurrentClass);
+      });
+      doodleBrowser.querySelectorAll('[data-doodle-tool="clear-class"]').forEach((button) => {
+        button.addEventListener("click", clearCurrentClassSelections);
+      });
+
+      setupDoodleScrollbars();
+      syncDoodleRoundTrack();
+      updateDoodleRoundUI(visibleSections);
     }
 
     function toggleClassSelection(classId) {
@@ -227,6 +351,10 @@
 
       if (selectedClasses.has(classId)) {
         selectedClasses.delete(classId);
+        selectedClassOrder = selectedClassOrder.filter((id) => id !== classId);
+        if (addDoodleTargetClassId === classId) {
+          closeAddDoodlePopup();
+        }
         [...selectedDoodles].forEach((sampleId) => {
           const sample = findSampleById(sampleId);
           if (sample && sample.labelId === classId) {
@@ -235,8 +363,10 @@
         });
       } else {
         selectedClasses.add(classId);
+        selectedClassOrder.push(classId);
       }
 
+      clampCurrentDoodleRound(selectedClassOrder.length);
       renderClassOptions();
       renderDoodleTiles();
       updateSelectionUI();
@@ -252,12 +382,17 @@
             throw new Error("Failed to load " + section.datasetPath);
           }
 
+          const extraSamplesToLoad = Array.isArray(section.skippedSampleIndexes)
+            ? section.skippedSampleIndexes.length
+            : 0;
           const drawings = section.datasetType === "json"
-            ? parseQuickDrawJson(await response.json(), section.samples.length)
-            : parseQuickDrawBinary(await response.arrayBuffer(), section.samples.length);
+            ? parseQuickDrawJson(await response.json(), section.samples.length + extraSamplesToLoad)
+            : parseQuickDrawBinary(await response.arrayBuffer(), section.samples.length + extraSamplesToLoad);
+          const skippedIndexes = new Set(section.skippedSampleIndexes || []);
 
           section.samples = section.samples.map((sample, index) => {
-            const drawing = drawings[index];
+            const sourceIndex = index + [...skippedIndexes].filter((skippedIndex) => skippedIndex <= index).length;
+            const drawing = drawings[sourceIndex];
             if (!drawing) return sample;
 
             return {
@@ -281,6 +416,207 @@
       return sample.preview;
     }
 
+    function openAddDoodlePopup(classId) {
+      if (trainingInProgress) return;
+
+      const section = doodleSections.find((item) => item.id === classId);
+      if (!section) return;
+
+      addDoodleTargetClassId = classId;
+      addDoodlePopupCopyEl.textContent = formatMessage("imageClassifierAddDoodlePrompt", {
+        label: getSectionLabel(section)
+      });
+      resetAddDoodleCanvas();
+      addDoodlePopup.classList.remove("hidden");
+      addDoodlePopup.setAttribute("aria-hidden", "false");
+    }
+
+    function openCustomClassPopup() {
+      customClassNameInput.value = "";
+      customClassPopup.classList.remove("hidden");
+      customClassPopup.setAttribute("aria-hidden", "false");
+      window.setTimeout(() => customClassNameInput.focus(), 0);
+    }
+
+    function closeCustomClassPopup() {
+      customClassPopup.classList.add("hidden");
+      customClassPopup.setAttribute("aria-hidden", "true");
+      customClassNameInput.value = "";
+    }
+
+    function closeAddDoodlePopup() {
+      addDoodleTargetClassId = null;
+      addDoodlePopup.classList.add("hidden");
+      addDoodlePopup.setAttribute("aria-hidden", "true");
+      addDoodleIsDrawing = false;
+    }
+
+    function handleAddDoodlePopupKeydown(event) {
+      if (event.key === "Escape") {
+        if (!addDoodlePopup.classList.contains("hidden")) {
+          closeAddDoodlePopup();
+        }
+        if (!customClassPopup.classList.contains("hidden")) {
+          closeCustomClassPopup();
+        }
+      }
+
+      if (event.key === "Enter" && !customClassPopup.classList.contains("hidden") && document.activeElement === customClassNameInput) {
+        event.preventDefault();
+        commitCustomClassName();
+      }
+    }
+
+    function commitCustomClassName() {
+      const trimmedName = customClassNameInput.value.trim();
+      if (!trimmedName) return;
+
+      invalidateTrainedModel();
+      const customClassId = `custom-${++customClassCounter}`;
+      doodleSections.push({
+        id: customClassId,
+        labelKey: "imageClassifierClassCustom",
+        customLabel: trimmedName,
+        isCustomClass: true,
+        samples: []
+      });
+      selectedClasses.add(customClassId);
+      selectedClassOrder.push(customClassId);
+      closeCustomClassPopup();
+      renderClassOptions();
+      renderDoodleTiles();
+      updateSelectionUI();
+    }
+
+    function removeCustomClass(classId) {
+      invalidateTrainedModel();
+      selectedClasses.delete(classId);
+      selectedClassOrder = selectedClassOrder.filter((id) => id !== classId);
+      [...selectedDoodles].forEach((sampleId) => {
+        const sample = findSampleById(sampleId);
+        if (sample && sample.labelId === classId) {
+          selectedDoodles.delete(sampleId);
+        }
+      });
+      const customSectionIndex = doodleSections.findIndex((section) => section.id === classId);
+      if (customSectionIndex !== -1) {
+        doodleSections.splice(customSectionIndex, 1);
+      }
+      if (addDoodleTargetClassId === classId) {
+        closeAddDoodlePopup();
+      }
+      closeCustomClassPopup();
+      renderClassOptions();
+      renderDoodleTiles();
+      updateSelectionUI();
+    }
+
+    function resetAddDoodleCanvas() {
+      addDoodleCtx.fillStyle = "white";
+      addDoodleCtx.fillRect(0, 0, addDoodleCanvas.width, addDoodleCanvas.height);
+      addDoodleCtx.strokeStyle = "#111111";
+      addDoodleCtx.fillStyle = "#111111";
+      addDoodleCtx.lineCap = "round";
+      addDoodleCtx.lineJoin = "round";
+      addDoodleCtx.lineWidth = 9;
+      addDoodleHasDrawn = false;
+      addDoodleStrokeMoved = false;
+      confirmAddDoodleBtn.disabled = true;
+    }
+
+    function setupAddDoodleCanvas() {
+      addDoodleCanvas.addEventListener("pointerdown", startAddDoodleStroke);
+      addDoodleCanvas.addEventListener("pointermove", moveAddDoodleStroke);
+      addDoodleCanvas.addEventListener("pointerup", endAddDoodleStroke);
+      addDoodleCanvas.addEventListener("pointerleave", endAddDoodleStroke);
+      addDoodleCanvas.addEventListener("pointercancel", endAddDoodleStroke);
+    }
+
+    function startAddDoodleStroke(event) {
+      if (addDoodlePopup.classList.contains("hidden")) return;
+
+      addDoodleIsDrawing = true;
+      addDoodleStrokeMoved = false;
+      addDoodleCanvas.setPointerCapture(event.pointerId);
+      const { x, y } = getAddDoodleCanvasPoint(event);
+      addDoodleCtx.beginPath();
+      addDoodleCtx.moveTo(x, y);
+    }
+
+    function moveAddDoodleStroke(event) {
+      if (!addDoodleIsDrawing) return;
+
+      addDoodleStrokeMoved = true;
+      const { x, y } = getAddDoodleCanvasPoint(event);
+      addDoodleCtx.lineTo(x, y);
+      addDoodleCtx.stroke();
+      addDoodleHasDrawn = true;
+      confirmAddDoodleBtn.disabled = false;
+    }
+
+    function endAddDoodleStroke(event) {
+      if (!addDoodleIsDrawing) return;
+
+      if (!addDoodleStrokeMoved) {
+        const { x, y } = getAddDoodleCanvasPoint(event);
+        addDoodleCtx.beginPath();
+        addDoodleCtx.arc(x, y, addDoodleCtx.lineWidth * 0.38, 0, Math.PI * 2);
+        addDoodleCtx.fill();
+        addDoodleHasDrawn = true;
+        confirmAddDoodleBtn.disabled = false;
+      }
+
+      addDoodleIsDrawing = false;
+      addDoodleCtx.beginPath();
+
+      if (typeof event.pointerId === "number" && addDoodleCanvas.hasPointerCapture(event.pointerId)) {
+        addDoodleCanvas.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    function getAddDoodleCanvasPoint(event) {
+      const rect = addDoodleCanvas.getBoundingClientRect();
+      const scaleX = addDoodleCanvas.width / rect.width;
+      const scaleY = addDoodleCanvas.height / rect.height;
+
+      return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
+      };
+    }
+
+    function commitCustomDoodle() {
+      if (!addDoodleTargetClassId || !addDoodleHasDrawn) return;
+
+      const section = doodleSections.find((item) => item.id === addDoodleTargetClassId);
+      if (!section) return;
+
+      invalidateTrainedModel();
+      const previewImage = addDoodleCanvas.toDataURL("image/png");
+      const sample = {
+        id: `${addDoodleTargetClassId}-custom-${Date.now()}-${customDoodleCounter++}`,
+        preview: "CUSTOM",
+        previewImage,
+        isCustom: true
+      };
+
+      section.samples.push(sample);
+      closeAddDoodlePopup();
+      renderDoodleTiles();
+      updateSelectionUI();
+    }
+
+    function removeCustomDoodle(sampleId) {
+      const section = doodleSections.find((item) => item.samples.some((sample) => sample.id === sampleId && sample.isCustom));
+      if (!section) return;
+
+      invalidateTrainedModel();
+      section.samples = section.samples.filter((sample) => sample.id !== sampleId);
+      selectedDoodles.delete(sampleId);
+      renderDoodleTiles();
+      updateSelectionUI();
+    }
+
     function toggleDoodle(id) {
       invalidateTrainedModel();
 
@@ -297,7 +633,18 @@
     function clearSelection() {
       invalidateTrainedModel();
       selectedClasses.clear();
+      selectedClassOrder = [];
       selectedDoodles.clear();
+      for (let index = doodleSections.length - 1; index >= 0; index -= 1) {
+        if (doodleSections[index].isCustomClass) {
+          doodleSections.splice(index, 1);
+        } else {
+          doodleSections[index].samples = doodleSections[index].samples.filter((sample) => !sample.isCustom);
+        }
+      }
+      closeAddDoodlePopup();
+      closeCustomClassPopup();
+      currentDoodleRoundIndex = 0;
       renderClassOptions();
       renderDoodleTiles();
       updateSelectionUI();
@@ -310,20 +657,25 @@
         hasEnoughClasses,
         hasSamplesForEachClass
       } = getSelectionState();
-      const summaryText = formatMessage("imageClassifierSelectedSummary", {
-        classes: classCount,
-        doodles: doodleCount
-      });
       const hintText = !hasEnoughClasses
         ? t("imageClassifierPickAtLeastTwo")
         : hasSamplesForEachClass
-          ? t("imageClassifierReadyToTrain")
+          ? ""
           : t("imageClassifierPickDoodlesForEach");
 
-      selectionCountEl.textContent = summaryText;
-      selectionHintEl.textContent = hintText;
+      selectionCountEl.textContent = "";
+      selectionHintEl.textContent = "";
+      const selectedTagsMarkup = getSelectedClassLabels()
+        .map((label) => `<span class="model-tag">${label}</span>`)
+        .join("");
+
+      if (trainingReviewTagsEl) {
+        trainingReviewTagsEl.innerHTML = selectedTagsMarkup;
+      }
       if (trainingReviewCountEl) {
-        trainingReviewCountEl.textContent = summaryText;
+        trainingReviewCountEl.textContent = formatMessage("imageClassifierDoodlesReadyForTraining", {
+          doodles: doodleCount
+        });
       }
       if (trainingReviewHintEl) {
         trainingReviewHintEl.textContent = hintText;
@@ -332,7 +684,6 @@
       trainModelBtn.disabled = !hasEnoughClasses || !hasSamplesForEachClass || trainingInProgress;
       clearSelectionBtn.disabled = (classCount === 0 && doodleCount === 0) || trainingInProgress;
       toDoodlesBtn.disabled = classCount < 2 || trainingInProgress;
-      toTrainingBtn.disabled = !hasEnoughClasses || !hasSamplesForEachClass || trainingInProgress;
       toTestingBtn.disabled = !modelReady || trainingInProgress;
       if (classStepEl) {
         classStepEl.classList.add("classifier-step-active");
@@ -342,12 +693,23 @@
         doodleStepEl.classList.toggle("classifier-step-locked", !doodlesUnlocked);
         doodleStepEl.classList.toggle("classifier-step-active", doodlesUnlocked);
       }
+      updateDoodleRoundUI(getSelectedSectionsInOrder());
 
-      selectedTagsEl.innerHTML = getSelectedClassLabels()
-        .map((label) => `<span class="model-tag">${label}</span>`)
-        .join("");
-
-      testingSelectedTagsEl.innerHTML = selectedTagsEl.innerHTML;
+      if (selectedTagsEl) {
+        selectedTagsEl.innerHTML = selectedTagsMarkup;
+      }
+      if (testingSelectedTagsEl) {
+        testingSelectedTagsEl.innerHTML = selectedTagsMarkup;
+      }
+      updateTrainingChecklist({ hasEnoughClasses, hasSamplesForEachClass });
+      if (addDoodleTargetClassId) {
+        const section = doodleSections.find((item) => item.id === addDoodleTargetClassId);
+        if (section) {
+          addDoodlePopupCopyEl.textContent = formatMessage("imageClassifierAddDoodlePrompt", {
+            label: getSectionLabel(section)
+          });
+        }
+      }
       syncClassifierJourney();
     }
 
@@ -372,7 +734,7 @@
 
       if (modelReady) return 3;
       if (hasEnoughClasses && hasSamplesForEachClass) return 2;
-      if (classCount > 0) return 1;
+      if (hasEnoughClasses) return 1;
       return 0;
     }
 
@@ -423,6 +785,9 @@
         return;
       }
 
+      if (trainedBrowserModel?.model && typeof trainedBrowserModel.model.dispose === "function") {
+        trainedBrowserModel.model.dispose();
+      }
       modelReady = false;
       trainedBrowserModel = null;
       trainingInProgress = false;
@@ -438,27 +803,244 @@
       setPredictionPlaceholder("imageClassifierTrainAndDraw");
     }
 
+    function goToDoodleRound(index) {
+      const visibleSections = getSelectedSectionsInOrder();
+      if (!visibleSections.length) return;
+
+      const nextIndex = Math.max(0, Math.min(visibleSections.length - 1, index));
+      if (nextIndex === currentDoodleRoundIndex) return;
+
+      currentDoodleRoundIndex = nextIndex;
+      syncDoodleRoundTrack();
+      updateDoodleRoundUI(visibleSections);
+    }
+
+    function handleNextDoodleRoundAction() {
+      const visibleSections = getSelectedSectionsInOrder();
+      if (!visibleSections.length) return;
+      const activeSection = visibleSections[currentDoodleRoundIndex];
+      if (!activeSection || getSelectedCountForClass(activeSection.id) === 0) return;
+
+      const isLastRound = currentDoodleRoundIndex >= visibleSections.length - 1;
+      if (isLastRound) {
+        const { hasEnoughClasses, hasSamplesForEachClass } = getSelectionState();
+        if (hasEnoughClasses && hasSamplesForEachClass && !trainingInProgress) {
+          goToStep(2);
+        }
+        return;
+      }
+
+      goToDoodleRound(currentDoodleRoundIndex + 1);
+    }
+
+    function selectAllForCurrentClass() {
+      const visibleSections = getSelectedSectionsInOrder();
+      const activeSection = visibleSections[currentDoodleRoundIndex];
+      if (!activeSection || trainingInProgress) return;
+
+      invalidateTrainedModel();
+      activeSection.samples.forEach((sample) => {
+        selectedDoodles.add(sample.id);
+      });
+      renderDoodleTiles();
+      updateSelectionUI();
+    }
+
+    function clearCurrentClassSelections() {
+      const visibleSections = getSelectedSectionsInOrder();
+      const activeSection = visibleSections[currentDoodleRoundIndex];
+      if (!activeSection || trainingInProgress) return;
+
+      invalidateTrainedModel();
+      activeSection.samples.forEach((sample) => {
+        selectedDoodles.delete(sample.id);
+      });
+      renderDoodleTiles();
+      updateSelectionUI();
+    }
+
+    function clampCurrentDoodleRound(totalRounds) {
+      if (!totalRounds) {
+        currentDoodleRoundIndex = 0;
+        return;
+      }
+
+      currentDoodleRoundIndex = Math.max(0, Math.min(currentDoodleRoundIndex, totalRounds - 1));
+    }
+
+    function updateDoodleRoundUI(visibleSections = getSelectedSectionsInOrder()) {
+      const totalRounds = visibleSections.length;
+      const hasRounds = totalRounds > 0;
+      const activeSection = hasRounds ? visibleSections[currentDoodleRoundIndex] : null;
+      const activeCount = activeSection ? getSelectedCountForClass(activeSection.id) : 0;
+      const isLastRound = hasRounds && currentDoodleRoundIndex >= totalRounds - 1;
+      const { classCount, doodleCount, hasEnoughClasses, hasSamplesForEachClass } = getSelectionState();
+
+      if (selectionCountEl) {
+        selectionCountEl.textContent = "";
+      }
+      doodleRoundSummaryEl.textContent = "";
+
+      doodleBrowser.querySelectorAll('[data-doodle-tool="select-all"]').forEach((button) => {
+        button.disabled = !hasRounds || trainingInProgress || activeCount >= (activeSection?.samples.length || 0);
+      });
+      doodleBrowser.querySelectorAll('[data-doodle-tool="clear-class"]').forEach((button) => {
+        button.disabled = !hasRounds || trainingInProgress || activeCount === 0;
+      });
+      prevDoodleRoundBtn.hidden = !hasRounds;
+      nextDoodleRoundBtn.hidden = !hasRounds;
+      prevDoodleRoundBtn.disabled = !hasRounds || currentDoodleRoundIndex === 0 || trainingInProgress;
+      nextDoodleRoundBtn.disabled = !hasRounds || trainingInProgress || activeCount === 0 || (isLastRound && (!hasEnoughClasses || !hasSamplesForEachClass));
+      nextDoodleRoundBtn.textContent = isLastRound
+        ? t("imageClassifierContinueToTraining")
+        : t("imageClassifierDoneWithClass");
+    }
+
+    function updateTrainingChecklist({
+      hasEnoughClasses = getSelectionState().hasEnoughClasses,
+      hasSamplesForEachClass = getSelectionState().hasSamplesForEachClass
+    } = {}) {
+      const completedSteps = {
+        classes: hasEnoughClasses,
+        doodles: hasSamplesForEachClass,
+        train: modelReady
+      };
+      const currentStep = !completedSteps.classes
+        ? "classes"
+        : !completedSteps.doodles
+          ? "doodles"
+          : !completedSteps.train
+            ? "train"
+            : null;
+
+      trainingChecklistItems.forEach((item) => {
+        const checkKey = item.dataset.trainingCheck;
+        const isComplete = Boolean(completedSteps[checkKey]);
+        item.classList.toggle("is-complete", isComplete);
+        item.classList.toggle("is-active", !isComplete && checkKey === currentStep);
+      });
+    }
+
+    function syncDoodleRoundTrack() {
+      const roundTrack = doodleBrowser.querySelector(".doodle-round-track");
+      if (!roundTrack) return;
+
+      roundTrack.style.transform = `translateX(-${currentDoodleRoundIndex * 100}%)`;
+
+      roundTrack.querySelectorAll(".doodle-round-panel").forEach((panel, index) => {
+        panel.setAttribute("aria-hidden", String(index !== currentDoodleRoundIndex));
+      });
+    }
+
+    function setupDoodleScrollbars() {
+      doodleBrowser.querySelectorAll(".doodle-round-scroll-shell").forEach((shell) => {
+        const scrollArea = shell.querySelector(".doodle-round-panel-inner");
+        const rail = shell.querySelector(".doodle-scrollbar");
+        const thumb = shell.querySelector(".doodle-scrollbar-thumb");
+        if (!scrollArea || !rail || !thumb) return;
+
+        const classId = scrollArea.dataset.scrollClass;
+        if (classId && doodlePanelScrollTopByClass.has(classId)) {
+          scrollArea.scrollTop = doodlePanelScrollTopByClass.get(classId);
+        }
+
+        const syncThumb = () => {
+          const maxScroll = Math.max(1, scrollArea.scrollHeight - scrollArea.clientHeight);
+          const trackHeight = rail.clientHeight || scrollArea.clientHeight;
+          const thumbHeight = Math.max(72, (scrollArea.clientHeight / Math.max(scrollArea.scrollHeight, 1)) * trackHeight);
+          const travel = Math.max(0, trackHeight - thumbHeight);
+          const top = maxScroll > 0 ? (scrollArea.scrollTop / maxScroll) * travel : 0;
+
+          thumb.style.height = `${thumbHeight}px`;
+          thumb.style.transform = `translateY(${top}px)`;
+          shell.classList.toggle("is-scrollable", scrollArea.scrollHeight > scrollArea.clientHeight + 1);
+        };
+
+        scrollArea.addEventListener("scroll", () => {
+          if (classId) {
+            doodlePanelScrollTopByClass.set(classId, scrollArea.scrollTop);
+          }
+          syncThumb();
+        });
+
+        thumb.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          const maxScroll = Math.max(0, scrollArea.scrollHeight - scrollArea.clientHeight);
+          if (maxScroll <= 0) {
+            return;
+          }
+
+          const trackHeight = rail.clientHeight || scrollArea.clientHeight;
+          const thumbHeight = thumb.getBoundingClientRect().height;
+          const travel = Math.max(1, trackHeight - thumbHeight);
+          const startY = event.clientY;
+          const startScrollTop = scrollArea.scrollTop;
+
+          const handlePointerMove = (moveEvent) => {
+            const deltaY = moveEvent.clientY - startY;
+            const scrollDelta = (deltaY / travel) * maxScroll;
+            scrollArea.scrollTop = Math.max(0, Math.min(maxScroll, startScrollTop + scrollDelta));
+          };
+
+          const handlePointerUp = () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+            window.removeEventListener("pointercancel", handlePointerUp);
+          };
+
+          window.addEventListener("pointermove", handlePointerMove);
+          window.addEventListener("pointerup", handlePointerUp);
+          window.addEventListener("pointercancel", handlePointerUp);
+        });
+
+        rail.addEventListener("pointerdown", (event) => {
+          if (event.target === thumb) {
+            return;
+          }
+
+          const rect = rail.getBoundingClientRect();
+          const clickY = event.clientY - rect.top;
+          const maxScroll = Math.max(0, scrollArea.scrollHeight - scrollArea.clientHeight);
+          const thumbHeight = thumb.getBoundingClientRect().height;
+          const travel = Math.max(1, rail.clientHeight - thumbHeight);
+          const targetTop = Math.max(0, Math.min(travel, clickY - (thumbHeight / 2)));
+          const targetScroll = (targetTop / travel) * maxScroll;
+
+          scrollArea.scrollTop = targetScroll;
+        });
+
+        syncThumb();
+      });
+    }
+
     async function trainModel() {
       const { hasEnoughClasses, hasSamplesForEachClass, labelGroups } = getSelectionState();
       if (!hasEnoughClasses || !hasSamplesForEachClass || trainingInProgress) return;
 
       trainingInProgress = true;
       modelReady = false;
+      if (trainedBrowserModel?.model && typeof trainedBrowserModel.model.dispose === "function") {
+        trainedBrowserModel.model.dispose();
+      }
+      trainedBrowserModel = null;
       const selectedSamples = getSelectedSamples();
       const payloadSamples = getTrainingPayloadSamples();
 
       updateSelectionUI();
       setCanvasAvailability(false);
       setPredictionPlaceholder("imageClassifierTrainingInProgress");
-      modelStateEl.textContent = t("imageClassifierTraining");
-      modelBackendEl.textContent = t("imageClassifierConnecting");
+      if (modelStateEl) {
+        modelStateEl.textContent = t("imageClassifierTraining");
+      }
+      if (modelBackendEl) {
+        modelBackendEl.textContent = t("imageClassifierConnecting");
+      }
       trainingClassesEl.textContent = String(labelGroups.length);
       trainingSamplesEl.textContent = String(selectedSamples.length);
       trainingBackendNoteEl.textContent = "";
 
       showTrainingPopup();
       setTrainingProgress(0, "imageClassifierPreparingData");
-      startTrainingAnimation();
 
       const payload = {
         labels: getSelectedClassIds(),
@@ -466,6 +1048,7 @@
       };
 
       try {
+        ensureTensorFlowAvailable();
         if (payloadSamples.length !== selectedSamples.length) {
           throw new Error("Not all selected doodles have preview images available for training.");
         }
@@ -476,11 +1059,11 @@
         const processedSamples = [];
         for (let index = 0; index < payload.samples.length; index++) {
           const sample = payload.samples[index];
-          const vector = await vectorizeImageDataUrl(sample.image);
+          const pixels = await vectorizeImageDataUrl(sample.image);
           processedSamples.push({
             id: sample.id,
             label: sample.label,
-            vector
+            pixels
           });
 
           const progress = 18 + ((index + 1) / payload.samples.length) * 44;
@@ -489,10 +1072,13 @@
 
         await wait(120);
         setTrainingProgress(72, "imageClassifierTrainingClassifier");
-        trainedBrowserModel = buildBrowserModel(processedSamples, payload.labels);
+        trainedBrowserModel = await buildBrowserModel(processedSamples, payload.labels, (progress) => {
+          setTrainingProgress(72 + (progress * 18), "imageClassifierTrainingClassifier");
+        });
 
         await wait(120);
         setTrainingProgress(90, "imageClassifierValidatingModel");
+        await validateBrowserModel(processedSamples);
         await wait(120);
 
         finishTraining({
@@ -510,7 +1096,6 @@
     }
 
     function finishTraining(details) {
-      stopTrainingAnimation();
       setTrainingProgress(100, "imageClassifierModelReady");
       trainingClassesEl.textContent = String(details.classes);
       trainingSamplesEl.textContent = String(details.samples);
@@ -537,9 +1122,11 @@
     }
 
     function handleTrainingFailure(error, details) {
-      stopTrainingAnimation();
       trainingInProgress = false;
       modelReady = false;
+      if (trainedBrowserModel?.model && typeof trainedBrowserModel.model.dispose === "function") {
+        trainedBrowserModel.model.dispose();
+      }
       setCanvasAvailability(false);
       setPredictionPlaceholder("imageClassifierTrainAndDraw");
       trainingProgressEl.style.width = "0%";
@@ -576,29 +1163,9 @@
       trainingPopup.setAttribute("aria-hidden", "true");
     }
 
-    function startTrainingAnimation() {
-      stopTrainingAnimation();
-      let value = 0;
-      const steps = [
-        "imageClassifierPreparingData",
-        "imageClassifierEncodingDoodles",
-        "imageClassifierTrainingClassifier",
-        "imageClassifierValidatingModel"
-      ];
+    function startTrainingAnimation() {}
 
-      trainingInterval = window.setInterval(() => {
-        value = Math.min(value + Math.random() * 11 + 4, 92);
-        const stepIndex = Math.min(steps.length - 1, Math.floor(value / 25));
-        setTrainingProgress(value, steps[stepIndex]);
-      }, 260);
-    }
-
-    function stopTrainingAnimation() {
-      if (trainingInterval) {
-        window.clearInterval(trainingInterval);
-        trainingInterval = null;
-      }
-    }
+    function stopTrainingAnimation() {}
 
     function setTrainingProgress(value, label) {
       const clamped = Math.max(0, Math.min(100, value));
@@ -609,12 +1176,24 @@
     }
 
     function updateModelStatus(state, backend, trainedAt) {
-      modelStateEl.textContent = state;
-      modelBackendEl.textContent = backend;
-      modelTrainedAtEl.textContent = trainedAt;
-      testingModelStateEl.textContent = state;
-      testingModelBackendEl.textContent = backend;
-      testingModelTrainedAtEl.textContent = trainedAt;
+      if (modelStateEl) {
+        modelStateEl.textContent = state;
+      }
+      if (modelBackendEl) {
+        modelBackendEl.textContent = backend;
+      }
+      if (modelTrainedAtEl) {
+        modelTrainedAtEl.textContent = trainedAt;
+      }
+      if (testingModelStateEl) {
+        testingModelStateEl.textContent = state;
+      }
+      if (testingModelBackendEl) {
+        testingModelBackendEl.textContent = backend;
+      }
+      if (testingModelTrainedAtEl) {
+        testingModelTrainedAtEl.textContent = trainedAt;
+      }
     }
 
     function setCanvasAvailability(enabled) {
@@ -731,35 +1310,75 @@
       }
 
       predictionLabelEl.textContent = t("imageClassifierTestingProgress");
-      predictionConfidenceEl.textContent = t("imageClassifierSendingCanvas");
+      predictionConfidenceEl.textContent = "";
+      if (predictionOtherHeadingEl) {
+        predictionOtherHeadingEl.hidden = true;
+      }
+      if (predictionRankedListEl) {
+        predictionRankedListEl.innerHTML = "";
+      }
 
       try {
         await wait(120);
-        const result = predictWithBrowserModel(vectorizeCanvasElement(canvas));
+        const result = await predictWithBrowserModel(vectorizeCanvasElement(canvas));
         showPrediction({
           label: formatLabel(result.label || "unknown"),
           confidence: typeof result.confidence === "number" ? result.confidence : null,
-          source: t("imageClassifierPredictionFromBackend")
+          rankedProbabilities: Array.isArray(result.probabilities)
+            ? result.probabilities.map((item) => ({
+                label: formatLabel(item.label || "unknown"),
+                probability: item.probability
+              }))
+            : []
         });
       } catch (error) {
         predictionLabelEl.textContent = "-";
         predictionConfidenceEl.textContent = error.message || t("imageClassifierPredictionFallback");
+        if (predictionOtherHeadingEl) {
+          predictionOtherHeadingEl.hidden = true;
+        }
+        if (predictionRankedListEl) {
+          predictionRankedListEl.innerHTML = "";
+        }
       }
     }
 
     function showPrediction(result) {
       predictionLabelEl.textContent = result.label;
       if (typeof result.confidence === "number") {
-        predictionConfidenceEl.textContent = Math.round(result.confidence * 100) + "% " + t("imageClassifierConfidence") + ". " + result.source;
+        predictionConfidenceEl.textContent = Math.round(result.confidence * 100) + "%";
       } else {
-        predictionConfidenceEl.textContent = result.source;
+        predictionConfidenceEl.textContent = "";
+      }
+
+      if (predictionRankedListEl) {
+        const otherPredictions = (result.rankedProbabilities || []).filter((item) => item.label !== result.label);
+        if (predictionOtherHeadingEl) {
+          predictionOtherHeadingEl.hidden = otherPredictions.length === 0;
+        }
+        predictionRankedListEl.innerHTML = otherPredictions
+          .map((item) => `
+            <div class="prediction-ranked-item">
+              <span class="prediction-ranked-label">${item.label}</span>
+              <span class="prediction-ranked-value">${Math.round(item.probability * 100)}%</span>
+            </div>
+          `)
+          .join("");
       }
     }
 
     function setPredictionPlaceholder(messageKey = "imageClassifierTrainAndDraw") {
       predictionPlaceholderKey = messageKey;
       predictionLabelEl.textContent = "-";
-      predictionConfidenceEl.textContent = messageKey === "imageClassifierDrawThenTest" ? "" : t(messageKey);
+      predictionConfidenceEl.textContent = "";
+      if (predictionOtherHeadingEl) {
+        predictionOtherHeadingEl.hidden = true;
+      }
+      if (predictionRankedListEl) {
+        predictionRankedListEl.innerHTML = messageKey === "imageClassifierDrawThenTest"
+          ? ""
+          : `<div class="prediction-placeholder-text">${t(messageKey)}</div>`;
+      }
     }
 
     function getCanvasPoint(event) {
@@ -819,14 +1438,32 @@
       offscreenCtx.fillStyle = "white";
       offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
       offscreenCtx.drawImage(image, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
-      const normalizedCanvas = normalizeCanvasForClassifier(offscreenCtx, offscreenCanvas.width, offscreenCanvas.height, 64);
-      return extractVectorFromContext(normalizedCanvas.getContext("2d"), 64, 64);
+      const normalizedCanvas = normalizeCanvasForClassifier(
+        offscreenCtx,
+        offscreenCanvas.width,
+        offscreenCanvas.height,
+        classifierImageSize
+      );
+      return extractVectorFromContext(
+        normalizedCanvas.getContext("2d"),
+        classifierImageSize,
+        classifierImageSize
+      );
     }
 
     function vectorizeCanvasElement(sourceCanvas) {
       const sourceCtx = sourceCanvas.getContext("2d");
-      const normalizedCanvas = normalizeCanvasForClassifier(sourceCtx, sourceCanvas.width, sourceCanvas.height, 64);
-      return extractVectorFromContext(normalizedCanvas.getContext("2d"), 64, 64);
+      const normalizedCanvas = normalizeCanvasForClassifier(
+        sourceCtx,
+        sourceCanvas.width,
+        sourceCanvas.height,
+        classifierImageSize
+      );
+      return extractVectorFromContext(
+        normalizedCanvas.getContext("2d"),
+        classifierImageSize,
+        classifierImageSize
+      );
     }
 
     function normalizeCanvasForClassifier(sourceCtx, width, height, targetSize = 64) {
@@ -900,68 +1537,124 @@
         vector[i] = 1 - (average / 255);
       }
 
-      return normalizeVector(vector);
+      return Array.from(vector);
     }
 
-    function normalizeVector(vector) {
-      let magnitude = 0;
-      for (let i = 0; i < vector.length; i++) {
-        magnitude += vector[i] * vector[i];
+    async function buildBrowserModel(samples, labels, onEpochProgress = () => {}) {
+      const labelToIndex = new Map(labels.map((label, index) => [label, index]));
+      const xs = tf.tensor4d(
+        samples.flatMap((sample) => sample.pixels),
+        [samples.length, classifierImageSize, classifierImageSize, 1]
+      );
+      const labelTensor = tf.tensor1d(samples.map((sample) => labelToIndex.get(sample.label)), "int32");
+      const ys = tf.oneHot(labelTensor, labels.length);
+
+      const model = createClassifierModel(labels.length);
+      model.compile({
+        optimizer: tf.train.adam(0.001),
+        loss: "categoricalCrossentropy",
+        metrics: ["accuracy"]
+      });
+
+      try {
+        await model.fit(xs, ys, {
+          epochs: 18,
+          batchSize: Math.min(8, samples.length),
+          shuffle: true,
+          callbacks: {
+            onEpochEnd: async (epoch) => {
+              onEpochProgress((epoch + 1) / 18);
+              await tf.nextFrame();
+            }
+          }
+        });
+      } catch (error) {
+        model.dispose();
+        throw error;
+      } finally {
+        xs.dispose();
+        ys.dispose();
+        labelTensor.dispose();
       }
 
-      magnitude = Math.sqrt(magnitude) || 1;
-      return Array.from(vector, (value) => value / magnitude);
-    }
-
-    function buildBrowserModel(samples, labels) {
       return {
         labels: [...labels],
-        samples: samples.map((sample) => ({
-          id: sample.id,
-          label: sample.label,
-          vector: sample.vector
-        }))
+        model
       };
     }
 
-    function predictWithBrowserModel(vector) {
-      if (!trainedBrowserModel || !trainedBrowserModel.samples.length) {
+    async function validateBrowserModel(samples) {
+      if (!trainedBrowserModel?.model) {
+        throw new Error("The CNN model was not created successfully.");
+      }
+
+      const testTensor = tf.tensor4d(
+        samples.flatMap((sample) => sample.pixels),
+        [samples.length, classifierImageSize, classifierImageSize, 1]
+      );
+      const prediction = trainedBrowserModel.model.predict(testTensor);
+      await prediction.data();
+      testTensor.dispose();
+      prediction.dispose();
+    }
+
+    async function predictWithBrowserModel(vector) {
+      if (!trainedBrowserModel?.model) {
         throw new Error("No in-browser model is available yet.");
       }
 
-      const scoredSamples = trainedBrowserModel.samples
-        .map((sample) => ({
-          label: sample.label,
-          score: cosineSimilarity(sample.vector, vector)
-        }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, Math.min(5, trainedBrowserModel.samples.length));
+      const inputTensor = tf.tensor4d(vector, [1, classifierImageSize, classifierImageSize, 1]);
+      const prediction = trainedBrowserModel.model.predict(inputTensor);
+      const probabilities = await prediction.data();
+      const bestIndex = probabilities.reduce((best, value, index, all) => (
+        value > all[best] ? index : best
+      ), 0);
+      const confidence = probabilities[bestIndex] ?? 0.5;
 
-      const scoreByLabel = new Map();
-      let totalScore = 0;
-
-      scoredSamples.forEach((match) => {
-        const safeScore = Math.max(0, match.score);
-        totalScore += safeScore;
-        scoreByLabel.set(match.label, (scoreByLabel.get(match.label) || 0) + safeScore);
-      });
-
-      const sortedLabels = [...scoreByLabel.entries()].sort((a, b) => b[1] - a[1]);
-      const [bestLabel, bestScore] = sortedLabels[0] || [trainedBrowserModel.labels[0], 0];
-      const confidence = totalScore > 0 ? bestScore / totalScore : 0.5;
+      inputTensor.dispose();
+      prediction.dispose();
 
       return {
-        label: bestLabel,
-        confidence: Math.max(0.35, Math.min(0.99, confidence))
+        label: trainedBrowserModel.labels[bestIndex] || trainedBrowserModel.labels[0],
+        confidence: Math.max(0.35, Math.min(0.99, confidence)),
+        probabilities: trainedBrowserModel.labels
+          .map((label, index) => ({
+            label,
+            probability: probabilities[index] ?? 0
+          }))
+          .sort((a, b) => b.probability - a.probability)
       };
     }
 
-    function cosineSimilarity(left, right) {
-      let sum = 0;
-      for (let index = 0; index < left.length; index++) {
-        sum += left[index] * right[index];
+    function createClassifierModel(classCount) {
+      return tf.sequential({
+        layers: [
+          tf.layers.conv2d({
+            inputShape: [classifierImageSize, classifierImageSize, 1],
+            filters: 8,
+            kernelSize: 3,
+            activation: "relu",
+            padding: "same"
+          }),
+          tf.layers.maxPooling2d({ poolSize: 2, strides: 2 }),
+          tf.layers.conv2d({
+            filters: 16,
+            kernelSize: 3,
+            activation: "relu",
+            padding: "same"
+          }),
+          tf.layers.maxPooling2d({ poolSize: 2, strides: 2 }),
+          tf.layers.flatten(),
+          tf.layers.dense({ units: 32, activation: "relu" }),
+          tf.layers.dense({ units: classCount, activation: "softmax" })
+        ]
+      });
+    }
+
+    function ensureTensorFlowAvailable() {
+      if (typeof window.tf === "undefined") {
+        throw new Error("TensorFlow.js could not be loaded, so the CNN trainer is unavailable.");
       }
-      return sum;
     }
 
     function loadImage(src) {
@@ -1001,15 +1694,22 @@
     }
 
     function getSelectedClassIds() {
-      return doodleSections
-        .filter((section) => selectedClasses.has(section.id))
-        .map((section) => section.id);
+      return getSelectedSectionsInOrder().map((section) => section.id);
     }
 
     function getSelectedClassLabels() {
-      return doodleSections
-        .filter((section) => selectedClasses.has(section.id))
-        .map((section) => getSectionLabel(section));
+      return getSelectedSectionsInOrder().map((section) => getSectionLabel(section));
+    }
+
+    function getSelectedSectionsInOrder() {
+      return doodleSections.filter((section) => selectedClasses.has(section.id));
+    }
+
+    function getSelectedCountForClass(classId) {
+      const section = doodleSections.find((item) => item.id === classId);
+      if (!section) return 0;
+
+      return section.samples.filter((sample) => selectedDoodles.has(sample.id)).length;
     }
 
     function parseQuickDrawBinary(buffer, limit) {

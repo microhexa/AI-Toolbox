@@ -45,6 +45,31 @@
       </div>
     </div>
 
+    <div id="add-doodle-popup" class="popup hidden" aria-hidden="true">
+      <div class="popup-content add-doodle-popup" role="dialog" aria-modal="true" aria-labelledby="add-doodle-popup-title">
+        <h2 id="add-doodle-popup-title" data-i18n="imageClassifierAddDoodleTitle">Draw a new doodle</h2>
+        <p id="add-doodle-popup-copy" data-i18n="imageClassifierAddDoodlePrompt">Draw a new doodle for this class, then press Add to include it in the training doodles.</p>
+        <canvas id="add-doodle-canvas" width="320" height="320" aria-label="Draw a new doodle"></canvas>
+        <div class="add-doodle-popup-actions">
+          <button id="cancel-add-doodle-btn" class="classifier-secondary-btn" type="button" data-i18n="imageClassifierCancel">Cancel</button>
+          <button id="confirm-add-doodle-btn" class="classifier-continue-btn" type="button" data-i18n="imageClassifierAddDoodle">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="custom-class-popup" class="popup hidden" aria-hidden="true">
+      <div class="popup-content custom-class-popup" role="dialog" aria-modal="true" aria-labelledby="custom-class-popup-title">
+        <h2 id="custom-class-popup-title" data-i18n="imageClassifierCustomClassTitle">Name your new class</h2>
+        <p data-i18n="imageClassifierCustomClassPrompt">Type a name for your new class, then press Add.</p>
+        <label class="sr-only" for="custom-class-name-input" data-i18n="imageClassifierCustomClassLabel">Class name</label>
+        <input id="custom-class-name-input" class="custom-class-name-input" type="text" maxlength="32" autocomplete="off">
+        <div class="add-doodle-popup-actions">
+          <button id="cancel-custom-class-btn" class="classifier-secondary-btn" type="button" data-i18n="imageClassifierCancel">Cancel</button>
+          <button id="confirm-custom-class-btn" class="classifier-continue-btn" type="button" data-i18n="imageClassifierAdd">Add</button>
+        </div>
+      </div>
+    </div>
+
     <div id="image-classifier-room" class="focus classifier-room">
       <div id="classifier-journey" class="classifier-journey" aria-label="Trin i billedklassifikatoren">
         <div class="classifier-journey-phase classifier-journey-phase-training" aria-hidden="true">
@@ -88,6 +113,7 @@
               <div class="tallbox">
                 <section id="classifier-class-step" class="classifier-step classifier-step-active" aria-labelledby="classifier-class-step-title">
                   <div id="classifier-class-step-title" class="step-title" data-i18n="imageClassifierChooseClasses">1. VÃ¦lg klasser</div>
+                  <p class="step-helper-text" data-i18n="imageClassifierChooseClassesHelper">What should the AI be able to recognize?</p>
                   <div id="class-picker" class="class-picker"></div>
                 </section>
 
@@ -99,9 +125,12 @@
 
             <div class="training-panel">
               <div class="tallbox classifier-guide-card">
-                <h2 data-i18n="imageClassifierTrainingTab">TrÃ¦ning</h2>
-                <p data-i18n="imageClassifierPickAtLeastTwo">Pick at least 2 classes</p>
-                <p class="training-note" data-i18n="imageClassifierTrainingUnlocks">TrÃ¦ning lÃ¥ser testen op.</p>
+                <h2 data-i18n="imageClassifierNeededForTraining">Needed for training</h2>
+                <ul class="training-checklist">
+                  <li class="training-check-item" data-training-check="classes" data-i18n="imageClassifierChecklistClasses">At least 2 classes</li>
+                  <li class="training-check-item" data-training-check="doodles" data-i18n="imageClassifierChecklistDoodles">Choose doodles</li>
+                  <li class="training-check-item" data-training-check="train" data-i18n="imageClassifierChecklistTrain">Train model</li>
+                </ul>
               </div>
             </div>
           </section>
@@ -117,21 +146,28 @@
                     <span id="selection-hint">Pick at least 2 classes</span>
                   </div>
 
+                  <div id="doodle-round-summary" class="doodle-round-summary" aria-live="polite"></div>
                   <div id="doodle-browser" class="doodle-browser"></div>
+                  <div class="doodle-round-actions">
+                    <button id="prev-doodle-round-btn" class="classifier-secondary-btn" type="button" data-i18n="imageClassifierPreviousClass">Previous class</button>
+                    <button id="next-doodle-round-btn" class="classifier-continue-btn" type="button" data-i18n="imageClassifierDoneWithClass">Done with this class</button>
+                  </div>
                 </section>
 
                 <div class="classifier-nav-actions">
-                  <button id="back-to-classes-btn" class="classifier-secondary-btn" type="button" data-i18n="menuBack">Back</button>
-                  <button id="to-training-btn" class="classifier-continue-btn" type="button" data-i18n="imageClassifierContinueToTraining">Continue to training</button>
+                  <button id="back-to-classes-btn" class="classifier-secondary-btn" type="button" data-i18n="imageClassifierBackToClassSelection">Back to class selection</button>
                 </div>
               </div>
             </div>
 
             <div class="training-panel">
               <div class="tallbox classifier-guide-card">
-                <h2 data-i18n="imageClassifierStepDoodles">Choose doodles</h2>
-                <p data-i18n="imageClassifierPickDoodlesForEach">Pick doodles for each class</p>
-                <p class="training-note" data-i18n="imageClassifierChooseClassesAbove">Choose classes above.</p>
+                <h2 data-i18n="imageClassifierNeededForTraining">Needed for training</h2>
+                <ul class="training-checklist">
+                  <li class="training-check-item" data-training-check="classes" data-i18n="imageClassifierChecklistClasses">At least 2 classes</li>
+                  <li class="training-check-item" data-training-check="doodles" data-i18n="imageClassifierChecklistDoodles">Choose doodles</li>
+                  <li class="training-check-item" data-training-check="train" data-i18n="imageClassifierChecklistTrain">Train model</li>
+                </ul>
               </div>
             </div>
           </section>
@@ -143,8 +179,10 @@
                 <p data-i18n="imageClassifierPopupIntro">De valgte doodles sendes til den lokale backend og bruges til at trÃ¦ne en lille billedklassifikator.</p>
 
                 <div class="classifier-review-card">
-                  <div id="training-review-count" class="result-highlight">0 classes selected, 0 doodles selected</div>
-                  <div id="training-review-hint" class="result-subtle">Pick at least 2 classes</div>
+                  <div class="training-review-label" data-i18n="imageClassifierClassesSelectedLabel">Classes selected:</div>
+                  <div id="training-review-tags" class="model-tag-list training-review-tags"></div>
+                  <div id="training-review-count" class="result-subtle">0 doodles ready for training</div>
+                  <div id="training-review-hint" class="result-subtle training-review-hint">Pick at least 2 classes</div>
                 </div>
 
                 <div class="train-actions">
@@ -161,14 +199,12 @@
 
             <div class="training-panel">
               <div class="tallbox">
-                <h2 data-i18n="imageClassifierStatusHeading">Status</h2>
-                <ul class="status-list">
-                  <li><strong data-i18n="imageClassifierState">Status</strong><span id="model-state">Venter pÃ¥ trÃ¦ning</span></li>
-                  <li><strong data-i18n="imageClassifierBackend">Backend</strong><span id="model-backend">Ikke forbundet</span></li>
-                  <li><strong data-i18n="imageClassifierLastTrained">Sidst trÃ¦net</strong><span id="model-trained-at">-</span></li>
+                <h2 data-i18n="imageClassifierNeededForTraining">Needed for training</h2>
+                <ul class="training-checklist">
+                  <li class="training-check-item" data-training-check="classes" data-i18n="imageClassifierChecklistClasses">At least 2 classes</li>
+                  <li class="training-check-item" data-training-check="doodles" data-i18n="imageClassifierChecklistDoodles">Choose doodles</li>
+                  <li class="training-check-item" data-training-check="train" data-i18n="imageClassifierChecklistTrain">Train model</li>
                 </ul>
-                <div id="selected-tags" class="model-tag-list"></div>
-                <p class="training-note" data-i18n="imageClassifierTrainingUnlocks">TrÃ¦ning lÃ¥ser testen op.</p>
               </div>
             </div>
           </section>
@@ -208,9 +244,13 @@
             <div class="insight-panel">
               <div id="result" class="tallbox">
                 <div id="result-top">
-                  <h2 data-i18n="imageClassifierPrediction">Forudsigelse</h2>
-                  <div id="prediction-label" class="result-highlight">-</div>
-                  <div id="prediction-confidence" class="result-subtle"></div>
+                  <h2 data-i18n="imageClassifierTopMatch">Top match</h2>
+                  <div class="prediction-topline">
+                    <div id="prediction-label" class="result-highlight">-</div>
+                    <div id="prediction-confidence" class="result-subtle"></div>
+                  </div>
+                  <div id="prediction-other-heading" class="prediction-other-heading" data-i18n="imageClassifierOtherMatches">Other matches</div>
+                  <div id="prediction-ranked-list" class="prediction-ranked-list"></div>
                 </div>
                 <div id="result-bottom">
                   <h2 data-i18n="imageClassifierModelDetails">Modeldetaljer</h2>
@@ -231,6 +271,7 @@
 
   <script src="scripts/translations.js"></script>
   <script src="scripts/script.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="scripts/image-classifier.js"></script>
 </body>
 </html>
