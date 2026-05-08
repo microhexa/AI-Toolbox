@@ -101,6 +101,13 @@
     const predictionConfidenceEl = document.getElementById("prediction-confidence");
     const predictionOtherHeadingEl = document.getElementById("prediction-other-heading");
     const predictionRankedListEl = document.getElementById("prediction-ranked-list");
+    const predictionHelpBtn = document.getElementById("prediction-help-btn");
+    const predictionHelpPopup = document.getElementById("prediction-help-popup");
+    const predictionHelpPopupCopyEl = document.getElementById("prediction-help-popup-copy");
+    const predictionHelpPopupExtraEl = document.getElementById("prediction-help-popup-extra");
+    const predictionHelpVisualEl = document.getElementById("prediction-help-visual");
+    const predictionHelpStackedBarEl = document.getElementById("prediction-help-stacked-bar");
+    const closePredictionHelpBtn = document.getElementById("close-prediction-help-btn");
     const classifierJourney = document.getElementById("classifier-journey");
     const classifierJourneySteps = Array.from(document.querySelectorAll("[data-step-target]"));
     const classifierJourneyTrack = document.querySelector(".classifier-journey-steps");
@@ -137,6 +144,14 @@
     const classifierImageSize = 64;
     const doodlePanelScrollTopByClass = new Map();
     const deleteDoodleIconMarkup = `<span class="doodle-delete-mark" aria-hidden="true">x</span>`;
+    const predictionHelpChartColors = [
+      "#f9c74f",
+      "#f9844a",
+      "#90be6d",
+      "#6fa8dc",
+      "#c5a3ff",
+      "#f7a8b8"
+    ];
 
     function getSectionLabel(section) {
       return section.customLabel || t(section.labelKey);
@@ -159,6 +174,7 @@
       resetBtn.setAttribute("aria-label", t("imageClassifierReset"));
       undoBtn.setAttribute("aria-label", t("imageClassifierUndo"));
       redoBtn.setAttribute("aria-label", t("imageClassifierRedo"));
+      predictionHelpBtn.setAttribute("aria-label", t("imageClassifierPredictionHelpAria"));
       renderClassOptions();
       renderDoodleTiles();
       updateSelectionUI();
@@ -205,6 +221,8 @@
     cancelCustomClassBtn.addEventListener("click", closeCustomClassPopup);
     confirmCustomClassBtn.addEventListener("click", commitCustomClassName);
     trainingPopupContinueBtn.addEventListener("click", continueFromTrainingPopup);
+    predictionHelpBtn.addEventListener("click", openPredictionHelpPopup);
+    closePredictionHelpBtn.addEventListener("click", closePredictionHelpPopup);
     addDoodlePopup.addEventListener("click", (event) => {
       if (event.target === addDoodlePopup) {
         closeAddDoodlePopup();
@@ -213,6 +231,11 @@
     customClassPopup.addEventListener("click", (event) => {
       if (event.target === customClassPopup) {
         closeCustomClassPopup();
+      }
+    });
+    predictionHelpPopup.addEventListener("click", (event) => {
+      if (event.target === predictionHelpPopup) {
+        closePredictionHelpPopup();
       }
     });
     document.addEventListener("keydown", handleAddDoodlePopupKeydown);
@@ -449,6 +472,119 @@
       addDoodleIsDrawing = false;
     }
 
+    function openPredictionHelpPopup() {
+      const helpState = getPredictionHelpState();
+      predictionHelpPopupCopyEl.textContent = helpState.message;
+      predictionHelpPopupExtraEl.classList.toggle("hidden", helpState.type !== "balance");
+      renderPredictionHelpVisual(helpState);
+      predictionHelpPopup.classList.remove("hidden");
+      predictionHelpPopup.setAttribute("aria-hidden", "false");
+      window.setTimeout(() => closePredictionHelpBtn.focus(), 0);
+    }
+
+    function closePredictionHelpPopup() {
+      predictionHelpPopup.classList.add("hidden");
+      predictionHelpPopup.setAttribute("aria-hidden", "true");
+    }
+
+    function getPredictionHelpState() {
+      const labelGroups = getSelectedLabelGroups();
+      if (labelGroups.length >= 2) {
+        const sortedGroups = [...labelGroups].sort((a, b) => {
+          if (a.count === b.count) {
+            return doodleSections.findIndex((section) => section.id === a.labelId)
+              - doodleSections.findIndex((section) => section.id === b.labelId);
+          }
+          return a.count - b.count;
+        });
+        const smallestGroup = sortedGroups[0];
+        const largestGroup = sortedGroups[sortedGroups.length - 1];
+
+        if (largestGroup.count > 0 && (smallestGroup.count / largestGroup.count) < (2 / 3)) {
+          const targetCount = Math.ceil(largestGroup.count * (2 / 3));
+          const exactMissingCount = Math.max(1, targetCount - smallestGroup.count);
+          const suggestedCount = exactMissingCount <= 2
+            ? exactMissingCount
+            : Math.ceil(exactMissingCount / 5) * 5;
+          const messageKey = suggestedCount === 1
+            ? "imageClassifierPredictionHelpBalanceOne"
+            : "imageClassifierPredictionHelpBalanceMany";
+
+          return {
+            type: "balance",
+            message: formatMessage(messageKey, {
+              count: suggestedCount,
+              label: smallestGroup.label
+            }),
+            groups: labelGroups,
+            focusLabelId: smallestGroup.labelId
+          };
+        }
+      }
+
+      return {
+        type: "clarity",
+        message: t("imageClassifierPredictionHelpClarity"),
+        groups: []
+      };
+    }
+
+    function renderPredictionHelpVisual(helpState) {
+      if (helpState.type !== "balance" || !helpState.groups.length) {
+        predictionHelpVisualEl.classList.add("hidden");
+        predictionHelpVisualEl.setAttribute("aria-hidden", "true");
+        predictionHelpStackedBarEl.innerHTML = "";
+        return;
+      }
+
+      const chartGroups = [...helpState.groups].sort((a, b) => {
+        return doodleSections.findIndex((section) => section.id === a.labelId)
+          - doodleSections.findIndex((section) => section.id === b.labelId);
+      });
+      const totalCount = chartGroups.reduce((sum, group) => sum + group.count, 0);
+      const insideLabelThreshold = 22;
+      let currentOffset = 0;
+      const segmentMarkup = [];
+      const calloutMarkup = [];
+
+      chartGroups.forEach((group, index) => {
+        const color = predictionHelpChartColors[index % predictionHelpChartColors.length];
+        const widthPercent = totalCount > 0 ? (group.count / totalCount) * 100 : 0;
+        const centerPercent = currentOffset + (widthPercent / 2);
+        const labelClass = widthPercent >= insideLabelThreshold
+          ? "prediction-help-stacked-label is-inside"
+          : "prediction-help-stacked-label is-callout";
+
+        segmentMarkup.push(`
+          <div class="prediction-help-stacked-segment" style="width:${widthPercent.toFixed(2)}%; background:${color};">
+            ${widthPercent >= insideLabelThreshold ? `<span class="${labelClass}">${group.label}</span>` : ""}
+          </div>
+        `);
+
+        if (widthPercent < insideLabelThreshold) {
+          calloutMarkup.push(`
+            <div class="${labelClass}" style="left:${centerPercent.toFixed(2)}%;">
+              <span class="prediction-help-callout-text">${group.label}</span>
+              <span class="prediction-help-callout-line" aria-hidden="true"></span>
+            </div>
+          `);
+        }
+
+        currentOffset += widthPercent;
+      });
+
+      predictionHelpStackedBarEl.innerHTML = `
+        <div class="prediction-help-stacked-callouts" aria-hidden="true">
+          ${calloutMarkup.join("")}
+        </div>
+        <div class="prediction-help-stacked-track" aria-hidden="true">
+          ${segmentMarkup.join("")}
+        </div>
+      `;
+      predictionHelpVisualEl.classList.remove("hidden");
+      predictionHelpVisualEl.setAttribute("aria-hidden", "false");
+    }
+
     function handleAddDoodlePopupKeydown(event) {
       if (event.key === "Escape") {
         if (!addDoodlePopup.classList.contains("hidden")) {
@@ -456,6 +592,9 @@
         }
         if (!customClassPopup.classList.contains("hidden")) {
           closeCustomClassPopup();
+        }
+        if (!predictionHelpPopup.classList.contains("hidden")) {
+          closePredictionHelpPopup();
         }
       }
 

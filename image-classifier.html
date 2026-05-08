@@ -73,6 +73,20 @@
       </div>
     </div>
 
+    <div id="prediction-help-popup" class="popup hidden" aria-hidden="true">
+      <div class="popup-content prediction-help-popup" role="dialog" aria-modal="true" aria-labelledby="prediction-help-popup-title">
+        <h2 id="prediction-help-popup-title" data-i18n="imageClassifierPredictionHelpTitle">Not what you expected?</h2>
+        <p id="prediction-help-popup-copy"></p>
+        <div id="prediction-help-visual" class="prediction-help-visual hidden" aria-hidden="true">
+          <div id="prediction-help-stacked-bar" class="prediction-help-stacked-bar" aria-hidden="true"></div>
+        </div>
+        <p id="prediction-help-popup-extra" class="prediction-help-popup-extra hidden" data-i18n="imageClassifierPredictionHelpBalanceWhy">If one class has many more doodles, the AI may get used to picking that class too often.</p>
+        <div class="add-doodle-popup-actions">
+          <button id="close-prediction-help-btn" class="classifier-continue-btn" type="button" data-i18n="imageClassifierOkay">Okay</button>
+        </div>
+      </div>
+    </div>
+
     <div id="image-classifier-room" class="focus classifier-room">
       <div id="classifier-journey" class="classifier-journey" aria-label="Trin i billedklassifikatoren">
         <div class="classifier-journey-phase classifier-journey-phase-training" aria-hidden="true">
@@ -242,7 +256,10 @@
             <div class="insight-panel">
               <div id="result" class="tallbox">
                 <div id="result-top">
-                  <h2 data-i18n="imageClassifierTopMatch">Top match</h2>
+                  <div class="prediction-header-row">
+                    <h2 data-i18n="imageClassifierTopMatch">Top match</h2>
+                    <button id="prediction-help-btn" class="prediction-help-btn" type="button" data-i18n-aria-label="imageClassifierPredictionHelpAria">?</button>
+                  </div>
                   <div class="prediction-topline">
                     <div id="prediction-label" class="result-highlight">-</div>
                     <div id="prediction-confidence" class="result-subtle"></div>
