@@ -1,6 +1,7 @@
 ﻿const translations = {
     en: {
         siteTitle: "AI Toolbox",
+        heroBylineBy: "By",
         menuOption1: "Home",
         menuOption2: "About",
         menuOption3: "For the curious",
@@ -293,6 +294,7 @@
     },
     da: {
         siteTitle: "AI Værktøjskasse",
+        heroBylineBy: "Af",
         menuOption1: "Hjem",
         menuOption2: "Om",
         menuOption3: "For de nysgerrige",
